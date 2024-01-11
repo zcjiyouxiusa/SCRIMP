@@ -1,0 +1,14 @@
+# set ignore file
+
+ __pycache__/
+ *.pyc
+*.wandb
+*.json
+*.pyc
+*.cpython-37.pyc
+*.log
+od_mstar3/__pycache__/
+transformer/__pycache__/
+od_mstar3/__pycache__/col_set_addition.cpython-37.pyc
+wandb/
+summaries/
