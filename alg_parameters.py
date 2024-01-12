@@ -76,7 +76,7 @@ class RecordingParameters:
     WANDB =  True
     TENSORBOARD = True
     TXT_WRITER =  True
-    ENTITY = 'yutong'
+    ENTITY = 'zhaochuang'
     TIME = datetime.datetime.now().strftime('%d-%m-%y%H%M')
     EXPERIMENT_PROJECT = 'MAPF'
     EXPERIMENT_NAME = 'SCRIMP'

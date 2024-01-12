@@ -1,3 +1,8 @@
+import platform
+import os
+if platform.system() == "Linux":
+    os.environ['PYOPENGL_PLATFORM'] = 'egl'
+
 import os
 import os.path as osp
 
@@ -105,10 +110,12 @@ def main():
                 curr_steps_id = ray.put(curr_steps)
                 demon_probs = np.random.rand()
                 if demon_probs < TrainingParameters.DEMONSTRATION_PROB:
+                    # imitation learning
                     demon = True
                     for i, env in enumerate(envs):
                         job_list.append(env.imitation.remote(net_weights_id, curr_steps_id))
                 else:
+                    # reinforcement learning
                     demon = False
                     for i, env in enumerate(envs):
                         job_list.append(env.run.remote(net_weights_id, curr_steps_id))
@@ -265,19 +272,19 @@ def main():
                                           "reward": best_perf}
                         torch.save(net_checkpoint, path_checkpoint)
 
-            # save model
-            if (curr_steps - last_model_t) / RecordingParameters.SAVE_INTERVAL >= 1.0:
-                last_model_t = curr_steps
-                print('Saving Model !\n')
-                model_path = osp.join(RecordingParameters.MODEL_PATH, '%.5i' % curr_steps)
-                os.makedirs(model_path)
-                path_checkpoint = model_path + "/net_checkpoint.pkl"
-                net_checkpoint = {"model": global_model.network.state_dict(),
-                                  "optimizer": global_model.net_optimizer.state_dict(),
-                                  "step": curr_steps,
-                                  "episode": curr_episodes,
-                                  "reward": eval_performance_dict['per_r']}
-                torch.save(net_checkpoint, path_checkpoint)
+                # save model
+                if (curr_steps - last_model_t) / RecordingParameters.SAVE_INTERVAL >= 1.0:
+                    last_model_t = curr_steps
+                    print('Saving Model !\n')
+                    model_path = osp.join(RecordingParameters.MODEL_PATH, '%.5i' % curr_steps)
+                    os.makedirs(model_path)
+                    path_checkpoint = model_path + "/net_checkpoint.pkl"
+                    net_checkpoint = {"model": global_model.network.state_dict(),
+                                    "optimizer": global_model.net_optimizer.state_dict(),
+                                    "step": curr_steps,
+                                    "episode": curr_episodes,
+                                    "reward": eval_performance_dict['per_r']}
+                    torch.save(net_checkpoint, path_checkpoint)
 
     except KeyboardInterrupt:
         print("CTRL-C pressed. killing remote workers")

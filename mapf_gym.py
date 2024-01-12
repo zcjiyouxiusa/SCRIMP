@@ -1090,5 +1090,5 @@ class MAPFEnv(gym.Env):
                         s = a_dist[m] * size
                         self.create_circle(x, y, s, size, (0, 0, 0))
         self.reset_renderer = False
-        result = self.viewer.render(return_rgb_array=mode == 'rgb_array')
+        result = self.viewer.render(return_rgb_array = mode == 'rgb_array')
         return result

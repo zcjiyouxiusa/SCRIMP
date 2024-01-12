@@ -12,3 +12,6 @@ transformer/__pycache__/
 od_mstar3/__pycache__/col_set_addition.cpython-37.pyc
 wandb/
 summaries/
+*.gif
+test.py
+*.pkl
