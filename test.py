@@ -49,20 +49,60 @@
 
 
 
-import time
-import gym
+# import time
+# import gym
 
-env = gym.make('BreakoutNoFrameskip-v4', render_mode='human')
-# env = gym.make('ALE/Breakout-v4')
-print("Observation Space: ", env.observation_space)
-print("Action Space       ", env.action_space)
+# env = gym.make('BreakoutNoFrameskip-v4', render_mode='human')
+# # env = gym.make('ALE/Breakout-v4')
+# print("Observation Space: ", env.observation_space)
+# print("Action Space       ", env.action_space)
 
 
-obs = env.reset()
+# obs = env.reset()
 
-for i in range(1000):
-    env.render()
-    action = env.action_space.sample()
-    obs, reward, done, *info = env.step(action)
-    time.sleep(0.01)
-env.close()
+# for i in range(1000):
+#     env.render()
+#     action = env.action_space.sample()
+#     obs, reward, done, *info = env.step(action)
+#     time.sleep(0.01)
+# env.close()
+
+
+# from matplotlib import pyplot as plt
+
+# x = [1, 2, 3, 4, 5, 6]
+# y = [10, 20, 30, 40, 50, 60]
+
+# plt.plot(x, y)
+    
+# plt.show()
+
+import wandb
+import random
+
+# start a new wandb run to track this script
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="my-awesome-project",
+    
+    # track hyperparameters and run metadata
+    config={
+    "learning_rate": 0.02,
+    "architecture": "CNN",
+    "dataset": "CIFAR-100",
+    "epochs": 10,
+    }
+)
+
+# simulate training
+epochs = 10
+offset = random.random() / 5
+for epoch in range(2, epochs):
+    acc = 1 - 2 ** -epoch - random.random() / epoch - offset
+    loss = 2 ** -epoch + random.random() / epoch + offset
+    
+    # log metrics to wandb
+    wandb.log({"acc": acc, "loss": loss})
+    
+# [optional] finish the wandb run, necessary in notebooks
+wandb.finish()

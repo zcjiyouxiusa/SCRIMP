@@ -38,13 +38,18 @@ def main():
             wandb_id = None
         else:
             wandb_id = wandb.util.generate_id()
-        wandb.init(project=RecordingParameters.EXPERIMENT_PROJECT,
+        # wandb.init(project=RecordingParameters.EXPERIMENT_PROJECT,
+        #            name=RecordingParameters.EXPERIMENT_NAME,
+        #            entity=RecordingParameters.ENTITY,
+        #            notes=RecordingParameters.EXPERIMENT_NOTE,
+        #            config=all_args,
+        #            id=wandb_id,
+        #            resume='allow')
+        wandb.init(project="",
                    name=RecordingParameters.EXPERIMENT_NAME,
-                   entity=RecordingParameters.ENTITY,
                    notes=RecordingParameters.EXPERIMENT_NOTE,
                    config=all_args,
-                   id=wandb_id,
-                   resume='allow')
+                   id=wandb_id)
         print('id is:{}'.format(wandb_id))
         print('Launching wandb...\n')
 

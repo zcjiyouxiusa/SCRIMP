@@ -16,6 +16,8 @@ class EnvParameters:
     COLLISION_COST = -2
     BLOCKING_COST = -1
 
+    COMM_SIZE = 10
+
 
 class TrainingParameters:
     lr = 1e-5
