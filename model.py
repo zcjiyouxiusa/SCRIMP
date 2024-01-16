@@ -22,13 +22,14 @@ class Model(object):
             # self.multi_gpu_net = torch.nn.DataParallel(self.network) # training on multiple GPU
             self.net_scaler = GradScaler()  # automatic mixed precision
 
-    def step(self, observation, vector, valid_action, input_state, no_reward, message, num_agent):
+    def step(self, observation, vector, valid_action, input_state, no_reward, message, comm_agents, num_agent):
         """using neural network in training for prediction"""
         num_invalid = 0
-        observation = torch.from_numpy(observation).to(self.device)
+        observation = torch.from_numpy(observation).to(self.device)  # [1, 8, 8, 3, 3]
         vector = torch.from_numpy(vector).to(self.device)
-        ps, v_in, v_ex, block, _, output_state, _, message = self.network(observation, vector, input_state,
-                                                                          message)
+        comm_agents = torch.from_numpy(comm_agents).to(self.device)  # [1, 8, 8]
+        masked_message = self.mask_message(message, comm_agents)  # [1, 8, 8, 512]
+        ps, v_in, v_ex, block, _, output_state, _, message = self.network(observation, vector, input_state, masked_message)
 
         actions = np.zeros(num_agent)
         ps = np.squeeze(ps.cpu().detach().numpy())
@@ -115,13 +116,14 @@ class Model(object):
         return eval_action, output_state, v_all, ps, message
 
     def train(self, observation, vector, returns_in, returns_ex, returns_all, old_v_in, old_v_ex, old_v_all, action,
-              old_ps, input_state, train_valid, target_blockings, message):
+              old_ps, input_state, train_valid, target_blockings, message, comm_agents):
         """train model0 by reinforcement learning"""
         self.net_optimizer.zero_grad()
         # from numpy to torch
-        observation = torch.from_numpy(observation).to(self.device)
+        observation = torch.from_numpy(observation).to(self.device)  # observation shape: [TrainingParameters.MINIBATCH_SIZE, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE]
         vector = torch.from_numpy(vector).to(self.device)
-        message = torch.from_numpy(message).to(self.device)
+        message = torch.from_numpy(message).to(self.device)  # message shape: [TrainingParameters.MINIBATCH_SIZE, self.num_agent, self.num_agent, NetParameters.NET_SIZE]
+        # comm_
 
         returns_in = torch.from_numpy(returns_in).to(self.device)
         returns_ex = torch.from_numpy(returns_ex).to(self.device)
@@ -246,3 +248,17 @@ class Model(object):
         self.net_scaler.update()
 
         return [imitation_loss.cpu().detach().numpy(), grad_norm.cpu().detach().numpy()]  # for recording
+
+
+    def mask_message(self, message, comm_agents):
+        """mask message with communication agents 
+        param:  message shape: [1, num_agents, NET_SIZE]
+                comm_agents shape: [1, num_agents, num_agents]
+        return: masked_message shape: [1, num_agents, num_agents, NET_SIZE]
+        """
+        comm_agents_ex = comm_agents.unsqueeze(3).expand(1, -1, -1, NetParameters.NET_SIZE)
+        # print(comm_agents_ex.shape)
+        masked_message = message.mul(comm_agents_ex)
+        # print(masked_message.shape)
+        return masked_message
+        

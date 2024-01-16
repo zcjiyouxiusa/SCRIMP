@@ -34,8 +34,9 @@ class Runner(object):
             torch.zeros((self.num_agent, NetParameters.NET_SIZE // 2)).to(self.local_device),
             torch.zeros((self.num_agent, NetParameters.NET_SIZE // 2)).to(self.local_device))
         self.message = torch.zeros((1, self.num_agent, NetParameters.NET_SIZE)).to(self.local_device)
-
-        self.done, self.valid_actions, self.obs, self.vector, self.train_valid = reset_env(self.env, self.num_agent)
+        self.comm_agents = torch.zeros((1, self.num_agent, self.num_agent)).to(self.local_device)
+        
+        self.done, self.valid_actions, self.obs, self.vector, self.comm_agents, self.train_valid = reset_env(self.env, self.num_agent)
 
         self.episodic_buffer = EpisodicBuffer(0, self.num_agent)
         new_xy = self.env.get_positions()
@@ -50,6 +51,7 @@ class Runner(object):
                 mb_values_all, mb_done, mb_ps, mb_actions = [], [], [], [], [], [], [], [], [], [], []
             mb_hidden_state = []
             mb_message = []
+            mb_comm_agents = []
             mb_train_valid, mb_blocking = [], []
             performance_dict = {'per_r': [], 'per_in_r': [], 'per_ex_r': [], 'per_valid_rate': [],
                                 'per_episode_len': [], 'per_block': [],
@@ -58,14 +60,16 @@ class Runner(object):
 
             self.local_model.set_weights(weights)
             for _ in range(TrainingParameters.N_STEPS):
-                mb_obs.append(self.obs)
+                mb_obs.append(self.obs)  # self.obs shape:[1, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE]
                 mb_vector.append(self.vector)
                 mb_hidden_state.append(
                     [self.hidden_state[0].cpu().detach().numpy(), self.hidden_state[1].cpu().detach().numpy()])
                 mb_message.append(self.message)
-                actions, ps, values_in, values_ex, values_all, pre_block, self.hidden_state, num_invalid, self.message = \
+                mb_comm_agents.append(self.comm_agents)
+                actions, ps, values_in, values_ex, values_all, pre_block, self.hidden_state, num_invalid, all_message = \
                     self.local_model.step(self.obs, self.vector, self.valid_actions, self.hidden_state,
-                                          self.episodic_buffer.no_reward, self.message, self.num_agent)
+                                          self.episodic_buffer.no_reward, self.message, self.comm_agents, self.num_agent)
+                
                 self.one_episode_perf['invalid'] += num_invalid
                 mb_values_in.append(values_in)
                 mb_values_ex.append(values_ex)
@@ -74,11 +78,12 @@ class Runner(object):
                 mb_ps.append(ps)
                 mb_done.append(self.done)
 
-                rewards, self.valid_actions, self.obs, self.vector, self.train_valid, self.done, blockings, \
+                rewards, self.valid_actions, self.obs, self.vector, self.comm_agents, self.train_valid, self.done, blockings, \
                     num_on_goals, self.one_episode_perf, max_on_goals, action_status, modify_actions, on_goal \
                     = one_step(self.env, self.one_episode_perf, actions, pre_block, self.local_model, values_all,
                                self.hidden_state, ps, self.episodic_buffer.no_reward, self.message, self.episodic_buffer,
                                self.num_agent)
+                
 
                 new_xy = self.env.get_positions()
                 processed_rewards, be_rewarded, intrinsic_rewards, min_dist = self.episodic_buffer.if_reward(new_xy,
@@ -121,13 +126,13 @@ class Runner(object):
                     self.hidden_state = (
                         torch.zeros((self.num_agent, NetParameters.NET_SIZE // 2)).to(self.local_device),
                         torch.zeros((self.num_agent, NetParameters.NET_SIZE // 2)).to(self.local_device))
-                    self.message = torch.zeros((1, self.num_agent, NetParameters.NET_SIZE)).to(self.local_device)
+                    self.message = torch.zeros((1, self.num_agent, self.num_agent, NetParameters.NET_SIZE)).to(self.local_device)
 
                     self.episodic_buffer.reset(total_steps, self.num_agent)
                     new_xy = self.env.get_positions()
                     self.episodic_buffer.batch_add(new_xy)
 
-            mb_obs = np.concatenate(mb_obs, axis=0)
+            mb_obs = np.concatenate(mb_obs, axis=0) # mb_obs shape:[TrainingParameters.N_STEPS, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE]
             mb_vector = np.concatenate(mb_vector, axis=0)
 
             mb_rewards_in = np.concatenate(mb_rewards_in, axis=0)
@@ -142,7 +147,8 @@ class Runner(object):
             mb_ps = np.stack(mb_ps)
             mb_done = np.asarray(mb_done, dtype=np.bool_)
             mb_hidden_state = np.stack(mb_hidden_state)
-            mb_message = np.concatenate(mb_message, axis=0)
+            mb_message = np.concatenate(mb_message, axis=0)  # mb_message shape: [TrainingParameters.N_STEPS, self.num_agent, self.num_agent, NetParameters.NET_SIZE]
+            mb_comm_agents = np.concatenate(mb_comm_agents,axis=0)  # NOTE ??
             mb_train_valid = np.stack(mb_train_valid)
             mb_blocking = np.concatenate(mb_blocking, axis=0)
 
@@ -189,7 +195,7 @@ class Runner(object):
             mb_returns_all = np.add(mb_advs_all, mb_values_all)
 
         return mb_obs, mb_vector, mb_returns_in, mb_returns_ex, mb_returns_all, mb_values_in, mb_values_ex, \
-            mb_values_all, mb_actions, mb_ps, mb_hidden_state, mb_train_valid, mb_blocking, mb_message, \
+            mb_values_all, mb_actions, mb_ps, mb_hidden_state, mb_train_valid, mb_blocking, mb_message, mb_comm_agents, \
             len(performance_dict['per_r']), performance_dict
 
     def imitation(self, weights, total_steps):

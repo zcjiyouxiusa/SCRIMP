@@ -38,13 +38,18 @@ def main():
             wandb_id = None
         else:
             wandb_id = wandb.util.generate_id()
-        wandb.init(project=RecordingParameters.EXPERIMENT_PROJECT,
+        wandb.init(project="",
                    name=RecordingParameters.EXPERIMENT_NAME,
-                   entity=RecordingParameters.ENTITY,
                    notes=RecordingParameters.EXPERIMENT_NOTE,
                    config=all_args,
-                   id=wandb_id,
-                   resume='allow')
+                   id=wandb_id)
+        # wandb.init(project=RecordingParameters.EXPERIMENT_PROJECT,
+        #            name=RecordingParameters.EXPERIMENT_NAME,
+        #            entity=RecordingParameters.ENTITY,
+        #            notes=RecordingParameters.EXPERIMENT_NOTE,
+        #            config=all_args,
+        #            id=wandb_id,
+        #            resume='allow')
         print('id is:{}'.format(wandb_id))
         print('Launching wandb...\n')
 
@@ -164,6 +169,7 @@ def main():
                     mb_values_ex, mb_values_all, mb_actions, mb_ps, mb_hidden_state, mb_train_valid,\
                     mb_blocking = [], [], [], [], [], [], [], [], [], [], [], [], []
                 mb_message = []
+                mb_comm_agents = []
                 performance_dict = {'per_r': [], 'per_in_r': [], 'per_ex_r': [], 'per_valid_rate': [],
                                     'per_episode_len': [], 'per_block': [],
                                     'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [],
@@ -183,7 +189,8 @@ def main():
                     mb_hidden_state.append(job_results[results][10])
                     mb_train_valid.append(job_results[results][11])
                     mb_blocking.append(job_results[results][12])
-                    mb_message.append(job_results[results][13])
+                    mb_message.append(job_results[results][13]) 
+                    mb_comm_agents.append(job_results[results][14])
                     curr_episodes += job_results[results][-2]
                     for i in performance_dict.keys():
                         performance_dict[i].append(np.nanmean(job_results[results][-1][i]))
@@ -191,7 +198,7 @@ def main():
                 for i in performance_dict.keys():
                     performance_dict[i] = np.nanmean(performance_dict[i])
 
-                mb_obs = np.concatenate(mb_obs, axis=0)
+                mb_obs = np.concatenate(mb_obs, axis=0)  # mb_obs shape:[done_len * TrainingParameters.N_STEPS, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE]
                 mb_vector = np.concatenate(mb_vector, axis=0)
                 mb_returns_in = np.concatenate(mb_returns_in, axis=0)
                 mb_returns_ex = np.concatenate(mb_returns_ex, axis=0)
@@ -204,8 +211,11 @@ def main():
                 mb_hidden_state = np.concatenate(mb_hidden_state, axis=0)
                 mb_train_valid = np.concatenate(mb_train_valid, axis=0)
                 mb_blocking = np.concatenate(mb_blocking, axis=0)
-                mb_message = np.concatenate(mb_message, axis=0)
-
+                mb_message = np.concatenate(mb_message, axis=0)  # mb_message shape:[done_len * TrainingParameters.N_STEPS, num_agent, num_agent, NET_SIZE]
+                print(f"mb_message:{mb_message.shape}")
+                print(f"mb_obs:{mb_obs.shape}")
+                mb_comm_agents = np.concatenate(mb_comm_agents, axis=0)
+                
                 # training of reinforcement learning
                 mb_loss = []
                 inds = np.arange(done_len * TrainingParameters.N_STEPS)
@@ -217,7 +227,7 @@ def main():
                         slices = (arr[mb_inds] for arr in
                                   (mb_obs, mb_vector, mb_returns_in, mb_returns_ex, mb_returns_all, mb_values_in,
                                    mb_values_ex, mb_values_all, mb_actions, mb_ps, mb_hidden_state,
-                                   mb_train_valid, mb_blocking, mb_message))
+                                   mb_train_valid, mb_blocking, mb_message, mb_comm_agents))
                         mb_loss.append(global_model.train(*slices))
 
                 # record training result
@@ -282,8 +292,7 @@ def main():
                     net_checkpoint = {"model": global_model.network.state_dict(),
                                     "optimizer": global_model.net_optimizer.state_dict(),
                                     "step": curr_steps,
-                                    "episode": curr_episodes,
-                                    "reward": eval_performance_dict['per_r']}
+                                    "episode": curr_episodes}
                     torch.save(net_checkpoint, path_checkpoint)
 
     except KeyboardInterrupt:
@@ -297,8 +306,7 @@ def main():
         net_checkpoint = {"model": global_model.network.state_dict(),
                           "optimizer": global_model.net_optimizer.state_dict(),
                           "step": curr_steps,
-                          "episode": curr_episodes,
-                          "reward": eval_performance_dict['per_r']}
+                          "episode": curr_episodes}
         torch.save(net_checkpoint, path_checkpoint)
         global_summary.close()
         # killing

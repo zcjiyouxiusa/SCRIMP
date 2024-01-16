@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from gym import spaces
-from gym.envs.classic_control import rendering
+# from gym.envs.classic_control import rendering
 from matplotlib.colors import hsv_to_rgb
 
 from alg_parameters import *
@@ -688,6 +688,7 @@ class MAPFEnv(gym.Env):
         """initialization"""
         self.num_agents = num_agents
         self.observation_size = EnvParameters.FOV_SIZE
+        self.communication_size = EnvParameters.COMM_SIZE
         self.SIZE = size  # size of a side of the square grid
         self.PROB = prob  # obstacle density
         self.max_on_goal = 0
@@ -852,7 +853,18 @@ class MAPFEnv(gym.Env):
             dx = dx / mag
             dy = dy / mag
 
-        return [poss_map, goal_map, goals_map, obs_map,guide_map[0],guide_map[1],guide_map[2],guide_map[3]], [dx, dy, mag]
+        communication_agents = np.zeros(self.num_agents)
+        comm_top_left = (self.world.get_pos(agent_id)[0] - self.communication_size // 2,
+                    self.world.get_pos(agent_id)[1] - self.communication_size // 2)  # (top, left)
+        for i in range(comm_top_left[0], comm_top_left[0] + self.communication_size):
+            for j in range(comm_top_left[1], comm_top_left[1] + self.communication_size):
+                if i < 0 or i >= self.world.state.shape[0] or j < 0 or j >= self.world.state.shape[1]:
+                    continue
+                elif self.world.state[i, j] > 0 and self.world.state[i, j] != agent_id:
+                    communication_agents[self.world.state[i, j] - 1] = 1
+
+
+        return [poss_map, goal_map, goals_map, obs_map,guide_map[0],guide_map[1],guide_map[2],guide_map[3]], [dx, dy, mag], communication_agents
 
     def _reset(self, num_agents):
         """restart a new task"""
@@ -955,6 +967,7 @@ class MAPFEnv(gym.Env):
         obs = np.zeros((1, self.num_agents, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE),
                        dtype=np.float32)
         vector = np.zeros((1, self.num_agents, NetParameters.VECTOR_LEN), dtype=np.float32)
+        comm_agents = np.zeros((1, self.num_agents, self.num_agents), dtype=np.int32)
         next_valid_actions = []
         on_goals = [False for _ in range(self.num_agents)]
         num_blockings = 0
@@ -992,6 +1005,7 @@ class MAPFEnv(gym.Env):
             state = self.observe(i + 1)
             obs[:, i, :, :, :] = state[0]
             vector[:, i, : 3] = state[1]
+            comm_agents[:, i, :] = state[2]
 
             next_valid_actions.append(self.list_next_valid_actions(i + 1, modify_actions[i]))
 
@@ -1002,7 +1016,7 @@ class MAPFEnv(gym.Env):
             self.max_on_goal = num_on_goal
         if num_step >= EnvParameters.EPISODE_LEN - 1:
             done = True
-        return obs, vector, rewards, done, next_valid_actions, on_goals, blockings, valid_actions, num_blockings, \
+        return obs, vector, comm_agents, rewards, done, next_valid_actions, on_goals, blockings, valid_actions, num_blockings, \
             leave_goals, num_on_goal, self.max_on_goal, num_collide, action_status, modify_actions
 
     def create_rectangle(self, x, y, width, height, fill, permanent=False):
@@ -1092,3 +1106,6 @@ class MAPFEnv(gym.Env):
         self.reset_renderer = False
         result = self.viewer.render(return_rgb_array = mode == 'rgb_array')
         return result
+
+if __name__ == "__main__":
+    env = MAPFEnv()

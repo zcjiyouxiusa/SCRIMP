@@ -74,7 +74,7 @@ class SetupParameters:
 
 class RecordingParameters:
     RETRAIN = False
-    WANDB =  True
+    WANDB =  False
     TENSORBOARD = True
     TXT_WRITER =  True
     ENTITY = 'zhaochuang'

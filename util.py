@@ -153,6 +153,7 @@ def reset_env(env, num_agent):
     prev_action = np.zeros(num_agent)
     valid_actions = []
     obs = np.zeros((1, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE), dtype=np.float32)
+    comm_agents = np.zeros((1, num_agent, num_agent), dtype=np.int32)
     vector = np.zeros((1, num_agent, NetParameters.VECTOR_LEN), dtype=np.float32)
     train_valid = np.zeros((num_agent, EnvParameters.N_ACTIONS), dtype=np.float32)
 
@@ -161,17 +162,18 @@ def reset_env(env, num_agent):
         s = env.observe(i + 1)
         obs[:, i, :, :, :] = s[0]
         vector[:, i, : 3] = s[1]
+        comm_agents[:, i, :] = s[2]
         vector[:, i, -1] = prev_action[i]
         valid_actions.append(valid_action)
         train_valid[i, valid_action] = 1
-    return done, valid_actions, obs, vector, train_valid
+    return done, valid_actions, obs, vector, comm_agents, train_valid
 
 
 def one_step(env, one_episode_perf, actions, pre_block, model, pre_value, input_state, ps, no_reward, message,
              episodic_buffer, num_agent):
     """run one step"""
     train_valid = np.zeros((num_agent, EnvParameters.N_ACTIONS), dtype=np.float32)
-    obs, vector, rewards, done, next_valid_actions, on_goal, blockings, valid_actions, num_blockings, leave_goals, \
+    obs, vector, comm_agents, rewards, done, next_valid_actions, on_goal, blockings, valid_actions, num_blockings, leave_goals, \
         num_on_goal, max_on_goal, num_collide, action_status, modify_actions \
         = env.joint_step(actions, one_episode_perf['num_step'], model, pre_value,
                          input_state, ps, no_reward, message, episodic_buffer)
@@ -185,7 +187,7 @@ def one_step(env, one_episode_perf, actions, pre_block, model, pre_value, input_
         if (pre_block[i] < 0.5) == blockings[:, i]:
             one_episode_perf['wrong_blocking'] += 1
     one_episode_perf['num_step'] += 1
-    return rewards, next_valid_actions, obs, vector, train_valid, done, blockings, num_on_goal, one_episode_perf, \
+    return rewards, next_valid_actions, obs, vector, comm_agents, train_valid, done, blockings, num_on_goal, one_episode_perf, \
         max_on_goal, action_status, modify_actions, on_goal
 
 

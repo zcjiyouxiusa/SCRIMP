@@ -83,8 +83,13 @@ class SCRIMPNet(nn.Module):
     def forward(self, obs, vector, input_state, message):
         """run neural network"""
         num_agent = obs.shape[1]
+        # obs shape:[-1, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE]
+        # message shape: [-1, self.num_agent, self.num_agent, NetParameters.NET_SIZE]
         obs = torch.reshape(obs, (-1,  NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE))
         vector = torch.reshape(vector, (-1, NetParameters.VECTOR_LEN))
+        print(f"obs shape:{obs.shape}")
+        # print(f"message shape:{message.shape}")
+        message = torch.reshape(message, (-1, EnvParameters.N_AGENTS, NetParameters.NET_SIZE))
         # matrix input
         x_1 = F.relu(self.conv1(obs))
         x_1 = F.relu(self.conv1a(x_1))
@@ -103,15 +108,20 @@ class SCRIMPNet(nn.Module):
         h1 = F.relu(self.fully_connected_2(x_3))
         h1 = self.fully_connected_3(h1)
         h2 = F.relu(h1 + x_3)
+        print(f"h2.shape:{h2.shape}")
         # LSTM cell
         memories, memory_c = self.lstm_memory(h2, input_state)
+        print(f"memories.shape:{memories.shape}") 
         output_state = (memories, memory_c)
-        memories = torch.reshape(memories, (-1, num_agent, NetParameters.NET_SIZE // 2))
-        h2 = torch.reshape(h2, (-1, num_agent, NetParameters.NET_SIZE))
-
+        memories = torch.reshape(memories, (-1, num_agent, NetParameters.NET_SIZE // 2))  # [1, 8, 256]
+        h2 = torch.reshape(h2, (-1, num_agent, NetParameters.NET_SIZE))  # [1, 8, 512]
+        print(f"message.shape:{message.shape}")
         c1 = self.communication_layer(message)
-
-        c1 = torch.cat([c1, memories, h2], -1)
+        print(f"c1.shape:{c1.shape}")
+        # print(f"memories.shape:{memories.shape}") 
+        # print(f"h2.shape:{h2.shape}")
+        
+        c1 = torch.cat([memories, c1, h2], -1)
         c1 = F.relu(self.fully_connected_4(c1))
         policy_layer = self.policy_layer(c1)
         policy = self.softmax_layer(policy_layer)
