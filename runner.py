@@ -66,7 +66,7 @@ class Runner(object):
                     [self.hidden_state[0].cpu().detach().numpy(), self.hidden_state[1].cpu().detach().numpy()])
                 mb_message.append(self.message)
                 mb_comm_agents.append(self.comm_agents)
-                actions, ps, values_in, values_ex, values_all, pre_block, self.hidden_state, num_invalid, all_message = \
+                actions, ps, values_in, values_ex, values_all, pre_block, self.hidden_state, num_invalid, self.message = \
                     self.local_model.step(self.obs, self.vector, self.valid_actions, self.hidden_state,
                                           self.episodic_buffer.no_reward, self.message, self.comm_agents, self.num_agent)
                 
@@ -81,7 +81,7 @@ class Runner(object):
                 rewards, self.valid_actions, self.obs, self.vector, self.comm_agents, self.train_valid, self.done, blockings, \
                     num_on_goals, self.one_episode_perf, max_on_goals, action_status, modify_actions, on_goal \
                     = one_step(self.env, self.one_episode_perf, actions, pre_block, self.local_model, values_all,
-                               self.hidden_state, ps, self.episodic_buffer.no_reward, self.message, self.episodic_buffer,
+                               self.hidden_state, ps, self.episodic_buffer.no_reward, self.message, self.comm_agents, self.episodic_buffer,
                                self.num_agent)
                 
 
@@ -119,20 +119,20 @@ class Runner(object):
                                              'reward_count': 0, 'ex_reward': 0, 'in_reward': 0}
                     self.num_agent = EnvParameters.N_AGENTS
 
-                    self.done, self.valid_actions, self.obs, self.vector, self.train_valid = reset_env(self.env,
-                                                                                                       self.num_agent)
+                    self.done, self.valid_actions, self.obs, self.vector, self.comm_agents, self.train_valid = reset_env(self.env, self.num_agent)
                     self.done = True
 
                     self.hidden_state = (
                         torch.zeros((self.num_agent, NetParameters.NET_SIZE // 2)).to(self.local_device),
                         torch.zeros((self.num_agent, NetParameters.NET_SIZE // 2)).to(self.local_device))
-                    self.message = torch.zeros((1, self.num_agent, self.num_agent, NetParameters.NET_SIZE)).to(self.local_device)
+                    self.message = torch.zeros((1, self.num_agent, NetParameters.NET_SIZE)).to(self.local_device)
 
                     self.episodic_buffer.reset(total_steps, self.num_agent)
                     new_xy = self.env.get_positions()
                     self.episodic_buffer.batch_add(new_xy)
-
+            # print(f"before mb_obs.shape:{mb_obs.shape}")
             mb_obs = np.concatenate(mb_obs, axis=0) # mb_obs shape:[TrainingParameters.N_STEPS, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE]
+            # print(f"after mb_obs.shape:{mb_obs.shape}")
             mb_vector = np.concatenate(mb_vector, axis=0)
 
             mb_rewards_in = np.concatenate(mb_rewards_in, axis=0)
@@ -154,7 +154,7 @@ class Runner(object):
 
             last_values_in, last_values_ex, last_values_all = np.squeeze(
                 self.local_model.value(self.obs, self.vector, self.hidden_state, self.episodic_buffer.no_reward,
-                                       self.message))
+                                       self.message, self.comm_agents))
 
             # calculate advantages
             mb_advs_in = np.zeros_like(mb_rewards_in)
@@ -204,7 +204,7 @@ class Runner(object):
             self.local_model.set_weights(weights)
 
             mb_obs, mb_vector, mb_hidden_state, mb_actions = [], [], [], []
-            mb_message = []
+            mb_message, mb_comm_agents = [], []
             step = 0
             episode = 0
             self.imitation_num_agent = EnvParameters.N_AGENTS
@@ -222,7 +222,7 @@ class Runner(object):
                 try:
                     obs = None
                     mstar_path = od_mstar.find_path(world, start_positions, goals, inflation=2, time_limit=5)
-                    obs, vector, actions, hidden_state, message = self.parse_path(mstar_path)
+                    obs, vector, actions, hidden_state, message, comm_agents = self.parse_path(mstar_path)
                 except OutOfTimeError:
                     print("timeout")
                 except NoSolutionError:
@@ -234,6 +234,7 @@ class Runner(object):
                     mb_actions.append(actions)
                     mb_hidden_state.append(hidden_state)
                     mb_message.append(message)
+                    mb_comm_agents.append(comm_agents)
                     step += np.shape(vector)[0]
                     episode += 1
 
@@ -242,11 +243,12 @@ class Runner(object):
             mb_actions = np.concatenate(mb_actions, axis=0)
             mb_hidden_state = np.concatenate(mb_hidden_state, axis=0)
             mb_message = np.concatenate(mb_message, axis=0)
-        return mb_obs, mb_vector, mb_actions, mb_hidden_state, mb_message, episode, step
+            mb_comm_agents = np.concatenate(mb_comm_agents, axis=0)
+        return mb_obs, mb_vector, mb_actions, mb_hidden_state, mb_message, mb_comm_agents, episode, step
 
     def parse_path(self, path):
         """take the path generated from M* and create the corresponding inputs and actions"""
-        mb_obs, mb_vector, mb_actions, mb_hidden_state = [], [], [], []
+        mb_obs, mb_vector, mb_actions, mb_hidden_state, mb_comm_agents = [], [], [], [], []
         mb_message = []
         hidden_state = (
             torch.zeros((self.imitation_num_agent, NetParameters.NET_SIZE // 2)).to(self.local_device),
@@ -255,19 +257,22 @@ class Runner(object):
                        dtype=np.float32)
         vector = np.zeros((1, self.imitation_num_agent, NetParameters.VECTOR_LEN), dtype=np.float32)
         message = torch.zeros((1, self.imitation_num_agent, NetParameters.NET_SIZE)).to(self.local_device)
+        comm_agents = torch.zeros((1, self.imitation_num_agent, self.imitation_num_agent)).to(self.local_device)
 
         for i in range(self.imitation_num_agent):
             s = self.imitation_env.observe(i + 1)
             obs[:, i, :, :, :] = s[0]
             vector[:, i, : 3] = s[1]
+            comm_agents[:, i, :] = s[2]
 
         for t in range(len(path[:-1])):
             mb_obs.append(obs)
             mb_vector.append(vector)
             mb_hidden_state.append([hidden_state[0].cpu().detach().numpy(), hidden_state[1].cpu().detach().numpy()])
             mb_message.append(message)
+            mb_comm_agents.append(comm_agents)
 
-            hidden_state, message = self.local_model.generate_state(obs, vector, hidden_state, message)
+            hidden_state, message = self.local_model.generate_state(obs, vector, hidden_state, message, comm_agents)
 
             actions = np.zeros(self.imitation_num_agent)
             for i in range(self.imitation_num_agent):
@@ -277,7 +282,7 @@ class Runner(object):
                 actions[i] = self.imitation_env.world.get_action(direction)
             mb_actions.append(actions)
 
-            obs, vector, rewards, done, _, on_goal, _, valid_actions, _, _, _, _, _, _, _ = \
+            obs, vector, comm_agents, rewards, done, _, on_goal, _, valid_actions, _, _, _, _, _, _, _ = \
                 self.imitation_env.joint_step(actions, 0, model='imitation', pre_value=None, input_state=None,
                                               ps=None, no_reward=None, message=None, episodic_buffer=None)
 
@@ -294,7 +299,8 @@ class Runner(object):
 
         mb_obs = np.concatenate(mb_obs, axis=0)
         mb_message = np.concatenate(mb_message, axis=0)
+        mb_comm_agents = np.concatenate(mb_comm_agents, axis=0)
         mb_vector = np.concatenate(mb_vector, axis=0)
         mb_actions = np.asarray(mb_actions, dtype=np.int64)
         mb_hidden_state = np.stack(mb_hidden_state)
-        return mb_obs, mb_vector, mb_actions, mb_hidden_state, mb_message
+        return mb_obs, mb_vector, mb_actions, mb_hidden_state, mb_message, mb_comm_agents

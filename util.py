@@ -169,14 +169,13 @@ def reset_env(env, num_agent):
     return done, valid_actions, obs, vector, comm_agents, train_valid
 
 
-def one_step(env, one_episode_perf, actions, pre_block, model, pre_value, input_state, ps, no_reward, message,
-             episodic_buffer, num_agent):
+def one_step(env, one_episode_perf, actions, pre_block, model, pre_value, input_state, ps, no_reward, message, comm_agents, episodic_buffer, num_agent):
     """run one step"""
     train_valid = np.zeros((num_agent, EnvParameters.N_ACTIONS), dtype=np.float32)
     obs, vector, comm_agents, rewards, done, next_valid_actions, on_goal, blockings, valid_actions, num_blockings, leave_goals, \
         num_on_goal, max_on_goal, num_collide, action_status, modify_actions \
         = env.joint_step(actions, one_episode_perf['num_step'], model, pre_value,
-                         input_state, ps, no_reward, message, episodic_buffer)
+                         input_state, ps, no_reward, message, comm_agents, episodic_buffer)
 
     one_episode_perf['block'] += num_blockings
     one_episode_perf['num_leave_goal'] += leave_goals

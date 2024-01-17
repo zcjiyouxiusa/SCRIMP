@@ -74,13 +74,13 @@ class SetupParameters:
 
 class RecordingParameters:
     RETRAIN = False
-    WANDB =  False
+    WANDB =  True
     TENSORBOARD = True
     TXT_WRITER =  True
     ENTITY = 'zhaochuang'
     TIME = datetime.datetime.now().strftime('%d-%m-%y%H%M')
     EXPERIMENT_PROJECT = 'MAPF'
-    EXPERIMENT_NAME = 'SCRIMP'
+    EXPERIMENT_NAME = 'restrict_comm'
     EXPERIMENT_NOTE = ''
     SAVE_INTERVAL = 5e5  # interval of saving model
     BEST_INTERVAL = 0  # interval of saving model with the best performance
