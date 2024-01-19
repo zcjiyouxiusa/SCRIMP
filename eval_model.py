@@ -98,7 +98,8 @@ if __name__ == "__main__":
                resume='allow')
     print('id is:{}'.format(wandb_id))
     print('Launching wandb...\n')
-    save_gif = True
+    # save_gif = True
+    save_gif = False
 
     # start evaluation
     for k in CASE:

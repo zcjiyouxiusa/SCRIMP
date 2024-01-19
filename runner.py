@@ -257,7 +257,8 @@ class Runner(object):
                        dtype=np.float32)
         vector = np.zeros((1, self.imitation_num_agent, NetParameters.VECTOR_LEN), dtype=np.float32)
         message = torch.zeros((1, self.imitation_num_agent, NetParameters.NET_SIZE)).to(self.local_device)
-        comm_agents = torch.zeros((1, self.imitation_num_agent, self.imitation_num_agent)).to(self.local_device)
+        # comm_agents = torch.zeros((1, self.imitation_num_agent, self.imitation_num_agent)).to(self.local_device)
+        comm_agents = np.zeros((1, self.imitation_num_agent, self.imitation_num_agent), dtype=np.int32)
 
         for i in range(self.imitation_num_agent):
             s = self.imitation_env.observe(i + 1)
@@ -284,7 +285,7 @@ class Runner(object):
 
             obs, vector, comm_agents, rewards, done, _, on_goal, _, valid_actions, _, _, _, _, _, _, _ = \
                 self.imitation_env.joint_step(actions, 0, model='imitation', pre_value=None, input_state=None,
-                                              ps=None, no_reward=None, message=None, episodic_buffer=None)
+                                              ps=None, no_reward=None, message=None, comm_agents=None, episodic_buffer=None)
 
             vector[:, :, -1] = actions
             new_xy = self.imitation_env.get_positions()

@@ -127,6 +127,7 @@ class Model(object):
               old_ps, input_state, train_valid, target_blockings, message, comm_agents):
         """train model0 by reinforcement learning"""
         self.net_optimizer.zero_grad()
+        # print("start training through reinforcement learning")
         # from numpy to torch
         # print(f"self.device:{self.device}")
         observation = torch.from_numpy(observation).to(self.device)  # observation shape: [TrainingParameters.MINIBATCH_SIZE, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE]

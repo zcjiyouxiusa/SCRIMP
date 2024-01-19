@@ -4,7 +4,7 @@ import imageio
 import numpy as np
 import torch
 import wandb
-
+import logging
 from alg_parameters import *
 
 
@@ -83,6 +83,7 @@ def write_to_tensorboard(global_summary, step, performance_dict=None, mb_loss=No
 
 def write_to_wandb(step, performance_dict=None, mb_loss=None, imitation_loss=None, evaluate=True, greedy=True):
     """record performance using wandb"""
+    print(f"step:{step}:write_to_wandb")
     if imitation_loss is not None:
         wandb.log({'Loss/Imitation_loss': imitation_loss[0]}, step=step)
         wandb.log({'Grad/Imitation_grad': imitation_loss[1]}, step=step)
@@ -210,3 +211,16 @@ def update_perf(one_episode_perf, performance_dict, num_on_goals, max_on_goals, 
     performance_dict['rewarded_rate'].append(
         one_episode_perf['reward_count'] / (one_episode_perf['num_step'] * num_agent))
     return performance_dict
+
+
+def get_logger():
+    logger = logging.getLogger()
+    logger.headlers = []
+    ch = logging.StreamHandler()
+    formatter = logging.Formatter('[%(levelname)s %(asctime)s] %(name)s %(message)s', '%H:%M:%S')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    logger.setLevel('DEBUG')
+
+    return logger
+    

@@ -30,11 +30,11 @@ class TrainingParameters:
     POLICY_COEF = 10
     VALID_COEF = 0.5
     BLOCK_COEF = 0.5
-    N_EPOCHS = 10
+    N_EPOCHS = 1
     N_ENVS = 16  # number of processes
     N_MAX_STEPS = 3e7  # maximum number of time steps used in training
-    N_STEPS = 2 ** 10  # number of time steps per process per data collection
-    MINIBATCH_SIZE = int(2 ** 10)
+    N_STEPS = 2 ** 8  # number of time steps per process per data collection
+    MINIBATCH_SIZE = int(2 ** 8)
     DEMONSTRATION_PROB = 0.1  # imitation learning rate
 
 
@@ -69,17 +69,17 @@ class SetupParameters:
     SEED = 1234
     USE_GPU_LOCAL = False
     USE_GPU_GLOBAL = True
-    NUM_GPU = 1
-
+    NUM_GPU = 2
 
 class RecordingParameters:
     RETRAIN = False
     WANDB =  True
     TENSORBOARD = True
     TXT_WRITER =  True
+    LOGGER = True
     ENTITY = 'zhaochuang'
     TIME = datetime.datetime.now().strftime('%d-%m-%y%H%M')
-    EXPERIMENT_PROJECT = 'MAPF'
+    EXPERIMENT_PROJECT = 'SCRIMP'
     EXPERIMENT_NAME = 'restrict_comm'
     EXPERIMENT_NOTE = ''
     SAVE_INTERVAL = 5e5  # interval of saving model

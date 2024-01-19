@@ -18,9 +18,10 @@ from episodic_buffer import EpisodicBuffer
 from mapf_gym import MAPFEnv
 from model import Model
 from runner import Runner
-from util import set_global_seeds, write_to_tensorboard, write_to_wandb, make_gif, reset_env, one_step, update_perf
+import logging
+from util import set_global_seeds, write_to_tensorboard, write_to_wandb, make_gif, reset_env, one_step, update_perf, get_logger
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5, 6"
 ray.init(num_gpus=SetupParameters.NUM_GPU)
 print("Welcome to SCRIMP on MAPF!\n")
 
@@ -38,7 +39,7 @@ def main():
             wandb_id = None
         else:
             wandb_id = wandb.util.generate_id()
-        wandb.init(project="",
+        wandb.init(project=RecordingParameters.EXPERIMENT_PROJECT,
                    name=RecordingParameters.EXPERIMENT_NAME,
                    notes=RecordingParameters.EXPERIMENT_NOTE,
                    config=all_args,
@@ -68,6 +69,10 @@ def main():
             with open(txt_path, "w") as f:
                 f.write(str(all_args))
             print('Logging txt...\n')
+
+        if RecordingParameters.LOGGER:
+            log = get_logger()
+            log.info("Logger setting down")
 
     setproctitle.setproctitle(
         RecordingParameters.EXPERIMENT_PROJECT + RecordingParameters.EXPERIMENT_NAME + "@" + RecordingParameters.ENTITY)
@@ -130,6 +135,7 @@ def main():
             update_done = True if job_list == [] else False
             done_len = len(done_id)
             job_results = ray.get(done_id)
+            log.info(f"Current step:[{curr_steps}/{TrainingParameters.N_MAX_STEPS}] data collection down.")
             if demon:
                 # get imitation learning data
                 mb_obs, mb_vector, mb_actions, mb_hidden_state = [], [], [], []
@@ -153,6 +159,7 @@ def main():
                 # training of imitation learning
                 mb_imitation_loss = []
                 for start in range(0, np.shape(mb_obs)[0], TrainingParameters.MINIBATCH_SIZE):
+                    log.info(f"IL:[{start}/{np.shape(mb_obs)[0]}]")
                     end = start + TrainingParameters.MINIBATCH_SIZE
                     slices = (arr[start:end] for arr in
                               (mb_obs, mb_vector, mb_actions, mb_hidden_state, mb_message, mb_comm_agents))
@@ -221,9 +228,11 @@ def main():
                 # training of reinforcement learning
                 mb_loss = []
                 inds = np.arange(done_len * TrainingParameters.N_STEPS)
-                for _ in range(TrainingParameters.N_EPOCHS):
+                for i in range(TrainingParameters.N_EPOCHS):
+                    # log.info(f"Epoch:[{i}/{TrainingParameters.N_EPOCHS}]")
                     np.random.shuffle(inds)
                     for start in range(0, done_len * TrainingParameters.N_STEPS, TrainingParameters.MINIBATCH_SIZE):
+                        log.info(f"RL:Epoch:[{i}/{TrainingParameters.N_EPOCHS}]:[{start}/{done_len * TrainingParameters.N_STEPS}]")
                         end = start + TrainingParameters.MINIBATCH_SIZE
                         mb_inds = inds[start:end]
                         slices = (arr[mb_inds] for arr in
@@ -241,7 +250,8 @@ def main():
             if (curr_steps - last_test_t) / RecordingParameters.EVAL_INTERVAL >= 1.0:
                 # if save gif
                 if (curr_steps - last_gif_t) / RecordingParameters.GIF_INTERVAL >= 1.0:
-                    save_gif = True
+                    # save_gif = True
+                    save_gif = False
                     last_gif_t = curr_steps
                 else:
                     save_gif = False
@@ -403,3 +413,5 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
 
 if __name__ == "__main__":
     main()
+    # import profile
+    # profile.run("main()")
