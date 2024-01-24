@@ -102,6 +102,8 @@ def write_to_wandb(step, performance_dict=None, mb_loss=None, imitation_loss=Non
             wandb.log({'Perf_greedy_eval/Block_accuracy': performance_dict['per_block_acc']}, step=step)
             wandb.log({'Perf_greedy_eval/Max_goals': performance_dict['per_max_goals']}, step=step)
             wandb.log({'Perf_greedy_eval/Num_collide': performance_dict['per_num_collide']}, step=step)
+            wandb.log({'Perf_greedy_eval/Num_tar_comm': performance_dict['per_num_tar_comm']}, step=step)
+            wandb.log({'Perf_greedy_eval/Num_comm': performance_dict['per_num_comm']}, step=step)
 
         else:
             wandb.log({'Perf_random_eval/Reward': performance_dict['per_r']}, step=step)
@@ -116,6 +118,8 @@ def write_to_wandb(step, performance_dict=None, mb_loss=None, imitation_loss=Non
             wandb.log({'Perf_random_eval/Block_accuracy': performance_dict['per_block_acc']}, step=step)
             wandb.log({'Perf_random_eval/Max_goals': performance_dict['per_max_goals']}, step=step)
             wandb.log({'Perf_random_eval/Num_collide': performance_dict['per_num_collide']}, step=step)
+            wandb.log({'Perf_random_eval/Num_tar_comm': performance_dict['per_num_tar_comm']}, step=step)
+            wandb.log({'Perf_random_eval/Num_comm': performance_dict['per_num_comm']}, step=step)
 
     else:
         loss_vals = np.nanmean(mb_loss, axis=0)
@@ -130,10 +134,10 @@ def write_to_wandb(step, performance_dict=None, mb_loss=None, imitation_loss=Non
         wandb.log({'Perf/Half_goals': performance_dict['per_half_goals']}, step=step)
         wandb.log({'Perf/Block_accuracy': performance_dict['per_block_acc']}, step=step)
         wandb.log({'Perf/Max_goals': performance_dict['per_max_goals']}, step=step)
-        wandb.log({'Perf/Num_collide': performance_dict['per_num_collide']},
-                  step=step)
-        wandb.log({'Perf/Rewarded_rate': performance_dict['rewarded_rate']},
-                  step=step)
+        wandb.log({'Perf/Num_collide': performance_dict['per_num_collide']},step=step)
+        wandb.log({'Perf/Rewarded_rate': performance_dict['rewarded_rate']},step=step)
+        wandb.log({'Perf/Num_tar_comm': performance_dict['per_num_tar_comm']}, step=step)
+        wandb.log({'Perf/Num_comm': performance_dict['per_num_comm']}, step=step)
 
         for (val, name) in zip(loss_vals, RecordingParameters.LOSS_NAME):
             if name == 'grad_norm':
@@ -170,17 +174,19 @@ def reset_env(env, num_agent):
     return done, valid_actions, obs, vector, comm_agents, train_valid
 
 
-def one_step(env, one_episode_perf, actions, pre_block, model, pre_value, input_state, ps, no_reward, message, comm_agents, episodic_buffer, num_agent):
+def one_step(env, one_episode_perf, actions, pre_block, model, pre_value, input_state, ps, no_reward, message, comm_agents, tar_comm, episodic_buffer, num_agent):
     """run one step"""
     train_valid = np.zeros((num_agent, EnvParameters.N_ACTIONS), dtype=np.float32)
     obs, vector, comm_agents, rewards, done, next_valid_actions, on_goal, blockings, valid_actions, num_blockings, leave_goals, \
-        num_on_goal, max_on_goal, num_collide, action_status, modify_actions \
+        num_on_goal, max_on_goal, num_collide, action_status, modify_actions, num_comm \
         = env.joint_step(actions, one_episode_perf['num_step'], model, pre_value,
-                         input_state, ps, no_reward, message, comm_agents, episodic_buffer)
+                         input_state, ps, no_reward, message, comm_agents, tar_comm, episodic_buffer)
 
     one_episode_perf['block'] += num_blockings
     one_episode_perf['num_leave_goal'] += leave_goals
     one_episode_perf['num_collide'] += num_collide
+    one_episode_perf['num_target_comm'] += num_comm[1]
+    one_episode_perf['num_comm'] += num_comm[2]
     vector[:, :, -1] = modify_actions
     for i in range(num_agent):
         train_valid[i, next_valid_actions[i]] = 1
@@ -193,6 +199,8 @@ def one_step(env, one_episode_perf, actions, pre_block, model, pre_value, input_
 
 def update_perf(one_episode_perf, performance_dict, num_on_goals, max_on_goals, num_agent):
     """record batch performance"""
+    print(f"one_episode_perf:{one_episode_perf}")
+    print(f"before update_perf:{performance_dict}")
     performance_dict['per_ex_r'].append(one_episode_perf['ex_reward'])
     performance_dict['per_in_r'].append(one_episode_perf['in_reward'])
     performance_dict['per_r'].append(one_episode_perf['episode_reward'])
@@ -210,6 +218,9 @@ def update_perf(one_episode_perf, performance_dict, num_on_goals, max_on_goals, 
     performance_dict['per_max_goals'].append(max_on_goals)
     performance_dict['rewarded_rate'].append(
         one_episode_perf['reward_count'] / (one_episode_perf['num_step'] * num_agent))
+    performance_dict['per_num_tar_comm'].append(one_episode_perf['num_target_comm'])
+    performance_dict['per_num_comm'].append(one_episode_perf['num_comm'])
+    print(f"after update_perf_dict:{performance_dict}")
     return performance_dict
 
 

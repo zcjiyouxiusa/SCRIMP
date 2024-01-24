@@ -117,7 +117,7 @@ class SCRIMPNet(nn.Module):
         h2 = torch.reshape(h2, (-1, num_agent, NetParameters.NET_SIZE))  # [1, 8, 512]
 
         # print(f"message.device:{message.device}")
-        c1 = self.communication_layer(message)  # c1.shape :[-1, 512]
+        c1, tar_comm = self.communication_layer(message)  # c1.shape :[-1, 512], tar_comm shape :[]
         # print(f"c1.device:{c1.device}")
 
         # print(f"c1.shape:{c1.shape}")
@@ -140,5 +140,5 @@ class SCRIMPNet(nn.Module):
         value_ex = self.value_layer_ex(c1)
         blocking = torch.sigmoid(self.blocking_layer(c1))
         message = self.message_layer(c1)
-        return policy, value_in, value_ex, blocking, policy_sig, output_state, policy_layer, message
+        return policy, value_in, value_ex, blocking, policy_sig, output_state, policy_layer, message, tar_comm
 

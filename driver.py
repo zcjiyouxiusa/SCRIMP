@@ -183,7 +183,7 @@ def main():
                                     'per_episode_len': [], 'per_block': [],
                                     'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [],
                                     'per_block_acc': [], 'per_max_goals': [], 'per_num_collide': [],
-                                    'rewarded_rate': []}
+                                    'rewarded_rate': [], 'per_num_tar_comm': [], 'per_num_comm': []}
                 for results in range(done_len):
                     mb_obs.append(job_results[results][0])
                     mb_vector.append(job_results[results][1])
@@ -332,7 +332,8 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
     """Evaluate Model."""
     eval_performance_dict = {'per_r': [], 'per_ex_r': [], 'per_in_r': [], 'per_valid_rate': [], 'per_episode_len': [],
                              'per_block': [], 'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [],
-                             'per_block_acc': [], 'per_max_goals': [], 'per_num_collide': [], 'rewarded_rate': []}
+                             'per_block_acc': [], 'per_max_goals': [], 'per_num_collide': [], 'rewarded_rate': [],
+                             'per_num_tar_comm': [], 'per_num_comm': []}
     episode_frames = []
 
     for i in range(RecordingParameters.EVAL_EPISODES):
@@ -350,14 +351,14 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
 
         one_episode_perf = {'num_step': 0, 'episode_reward': 0, 'invalid': 0, 'block': 0,
                             'num_leave_goal': 0, 'wrong_blocking': 0, 'num_collide': 0, 'reward_count': 0,
-                            'ex_reward': 0, 'in_reward': 0}
+                            'ex_reward': 0, 'in_reward': 0, 'num_target_comm': 0, 'num_comm': 0}
         if save_gif:
             episode_frames.append(eval_env._render(mode='rgb_array', screen_width=900, screen_height=900))
 
         # stepping
         while not done:
             # predict
-            actions, pre_block, hidden_state, num_invalid, v_all, ps, message = model.evaluate(obs, vector,
+            actions, pre_block, hidden_state, num_invalid, v_all, ps, message, tar_comm = model.evaluate(obs, vector,
                                                                                                valid_actions,
                                                                                                hidden_state,
                                                                                                greedy,
@@ -368,7 +369,7 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
             # move
             rewards, valid_actions, obs, vector, comm_agents, _, done, _, num_on_goals, one_episode_perf, max_on_goals, \
                 _, _, on_goal = one_step(eval_env, one_episode_perf, actions, pre_block, model, v_all, hidden_state,
-                                         ps, episodic_buffer.no_reward, message, comm_agents, episodic_buffer, num_agent)
+                                         ps, episodic_buffer.no_reward, message, comm_agents, tar_comm, episodic_buffer, num_agent)
 
             new_xy = eval_env.get_positions()
             processed_rewards, be_rewarded, intrinsic_reward, min_dist = episodic_buffer.if_reward(new_xy, rewards,
@@ -401,8 +402,7 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
                                  num_on_goals, greedy))
                     save_gif = False
 
-                eval_performance_dict = update_perf(one_episode_perf, eval_performance_dict, num_on_goals, max_on_goals,
-                                                    num_agent)
+                eval_performance_dict = update_perf(one_episode_perf, eval_performance_dict, num_on_goals, max_on_goals, num_agent)
 
     # average performance of multiple episodes
     for i in eval_performance_dict.keys():

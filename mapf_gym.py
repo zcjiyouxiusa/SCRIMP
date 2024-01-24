@@ -951,7 +951,7 @@ class MAPFEnv(gym.Env):
             available_actions.remove(opposite_actions[prev_action])
         return available_actions
 
-    def joint_step(self, actions, num_step, model, pre_value, input_state, ps, no_reward, message, comm_agents, episodic_buffer):
+    def joint_step(self, actions, num_step, model, pre_value, input_state, ps, no_reward, message, comm_agents, tar_comm, episodic_buffer):
         """execute joint action and obtain reward"""
         action_status, modify_actions = self.world.joint_move(actions, model, pre_value, input_state, ps, no_reward, message, comm_agents, episodic_buffer)
         valid_actions = [action_status[i] >= 0 for i in range(self.num_agents)]
@@ -968,12 +968,16 @@ class MAPFEnv(gym.Env):
         obs = np.zeros((1, self.num_agents, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE),
                        dtype=np.float32)
         vector = np.zeros((1, self.num_agents, NetParameters.VECTOR_LEN), dtype=np.float32)
+        obs_comm = np.zeros((1, self.num_agents, self.num_agents), dtype=np.int32)
         comm_agents = np.zeros((1, self.num_agents, self.num_agents), dtype=np.int32)
         next_valid_actions = []
         on_goals = [False for _ in range(self.num_agents)]
         num_blockings = 0
-        leave_goals = 0
+        leave_goals = 00
         num_collide = 0
+        num_obs_comm = 0
+        num_tar_comm = 0
+        num_comm_agent = 0
 
         for i in range(self.num_agents):
             if modify_actions[i] == 0:  # staying still
@@ -1006,19 +1010,42 @@ class MAPFEnv(gym.Env):
             state = self.observe(i + 1)
             obs[:, i, :, :, :] = state[0]
             vector[:, i, : 3] = state[1]
-            comm_agents[:, i, :] = state[2]
+            obs_comm[:, i, :] = state[2]
+            
+
+            if (tar_comm is not None):
+                if (tar_comm.device != 'cpu'):
+                    np_tar_comm = tar_comm.cpu().numpy()
+                else:
+                    np_tar_comm = tar_comm.numpy()
+                comm_agents = np.where(obs_comm + np_tar_comm > 1, 1, 0)
+            else:
+                comm_agents = obs_comm
+                np_tar_comm = 0
+            # print(f"comm_agents:{comm_agents}")
+            # print(f"np_tar_comm:{np_tar_comm}")
+            # print(f"obs_comm:{obs_comm}")
 
             next_valid_actions.append(self.list_next_valid_actions(i + 1, modify_actions[i]))
 
             on_goals[i] = self.world.get_pos(i + 1) == self.world.get_goal(i + 1)
+
+            num_obs_comm += np.sum(obs_comm)
+            num_tar_comm += np.sum(np_tar_comm)
+            num_comm_agent += np.sum(comm_agents)
+            
 
         done, num_on_goal = self.world.task_done()
         if num_on_goal > self.max_on_goal:
             self.max_on_goal = num_on_goal
         if num_step >= EnvParameters.EPISODE_LEN - 1:
             done = True
+
+        # print(f"num_tar_comm:{num_tar_comm}")
+        # print(f"num_comm_agent:{num_comm_agent}")
+
         return obs, vector, comm_agents, rewards, done, next_valid_actions, on_goals, blockings, valid_actions, num_blockings, \
-            leave_goals, num_on_goal, self.max_on_goal, num_collide, action_status, modify_actions
+            leave_goals, num_on_goal, self.max_on_goal, num_collide, action_status, modify_actions, [num_obs_comm, num_tar_comm, num_comm_agent]
 
     def create_rectangle(self, x, y, width, height, fill, permanent=False):
         """draw a rectangle to represent an agent"""
