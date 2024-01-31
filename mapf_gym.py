@@ -253,7 +253,7 @@ class State(object):
         return new_action, new_status, should_stop
 
     def value_compare(self, model, agent_indexes, pre_value, input_state, curr_position, past_position, valid_action,
-                      actions, ps, swap, no_reward, message, comm_agents, episodic_buffer, agent_status):
+                      actions, ps, swap, no_reward, message, obs_agents, episodic_buffer, agent_status):
         """breaking a tie based on the predicted team state value"""
         modified_valid_action = copy.deepcopy(valid_action)
         new_action, new_status, should_stop = self.reselect_action(modified_valid_action, actions, ps,
@@ -302,7 +302,7 @@ class State(object):
             vector[:, :, 4] = intrinsic_reward
             vector[:, :, 5] = min_dist
             # state value at time step t+1
-            _, _, v = model.value(obs, vector, input_state, no_reward, message, comm_agents)
+            _, _, v = model.value(obs, vector, input_state, no_reward, message, obs_agents)
             diffs.append(np.sum(v - pre_value))  # the state value difference between time step t and t+1
 
         distance = np.asarray(distance) / (np.sum(distance) + 1e-6)
@@ -313,7 +313,7 @@ class State(object):
 
         return winner, new_action
 
-    def joint_move(self, true_actions, model, pre_value, input_state, ps, no_reward, message, comm_agents, episodic_buffer):
+    def joint_move(self, true_actions, model, pre_value, input_state, ps, no_reward, message, obs_agents, episodic_buffer):
         """simultaneously move agents and checks for collisions on the joint action """
         imag_state = (self.state > 0).astype(int)  # map of world 0-no agent, 1- have agent
         actions = copy.deepcopy(true_actions)
@@ -384,7 +384,7 @@ class State(object):
                                                                       curr_position,
                                                                       past_position, valid_action, actions, ps,
                                                                       swap=False, no_reward=no_reward, message=message,
-                                                                      comm_agents = comm_agents,
+                                                                      obs_agents = obs_agents,
                                                                       episodic_buffer=episodic_buffer,
                                                                       agent_status=agent_status)
                             compared = True
@@ -393,7 +393,7 @@ class State(object):
                                                                   curr_position,
                                                                   past_position, valid_action, actions, ps,
                                                                   swap=False, no_reward=no_reward, message=message,
-                                                                  comm_agents = comm_agents,
+                                                                  obs_agents = obs_agents,
                                                                   episodic_buffer=episodic_buffer,
                                                                   agent_status=agent_status)
                         compared = True
@@ -493,7 +493,7 @@ class State(object):
                                                                       curr_position,
                                                                       past_position, valid_action, actions, ps,
                                                                       swap=True, no_reward=no_reward, message=message,
-                                                                      comm_agents = comm_agents,
+                                                                      obs_agents = obs_agents,
                                                                       episodic_buffer=episodic_buffer,
                                                                       agent_status=agent_status)
                             compared = True
@@ -502,7 +502,7 @@ class State(object):
                                                                   curr_position,
                                                                   past_position, valid_action, actions, ps,
                                                                   swap=True, no_reward=no_reward, message=message,
-                                                                  comm_agents = comm_agents,
+                                                                  obs_agents = obs_agents,
                                                                   episodic_buffer=episodic_buffer,
                                                                   agent_status=agent_status)
                         compared = True
@@ -951,9 +951,9 @@ class MAPFEnv(gym.Env):
             available_actions.remove(opposite_actions[prev_action])
         return available_actions
 
-    def joint_step(self, actions, num_step, model, pre_value, input_state, ps, no_reward, message, comm_agents, tar_comm, episodic_buffer):
+    def joint_step(self, actions, num_step, model, pre_value, input_state, ps, no_reward, message, obs_agents, episodic_buffer):
         """execute joint action and obtain reward"""
-        action_status, modify_actions = self.world.joint_move(actions, model, pre_value, input_state, ps, no_reward, message, comm_agents, episodic_buffer)
+        action_status, modify_actions = self.world.joint_move(actions, model, pre_value, input_state, ps, no_reward, message, obs_agents, episodic_buffer)
         valid_actions = [action_status[i] >= 0 for i in range(self.num_agents)]
         #     2: action executed and agent leave its own goal
         #     1: action executed and reached/stayed on goal
@@ -975,9 +975,7 @@ class MAPFEnv(gym.Env):
         num_blockings = 0
         leave_goals = 00
         num_collide = 0
-        num_obs_comm = 0
-        num_tar_comm = 0
-        num_comm_agent = 0
+
 
         for i in range(self.num_agents):
             if modify_actions[i] == 0:  # staying still
@@ -1013,15 +1011,6 @@ class MAPFEnv(gym.Env):
             obs_comm[:, i, :] = state[2]
             
 
-            if (tar_comm is not None):
-                if (tar_comm.device != 'cpu'):
-                    np_tar_comm = tar_comm.cpu().numpy()
-                else:
-                    np_tar_comm = tar_comm.numpy()
-                comm_agents = np.where(obs_comm + np_tar_comm > 1, 1, 0)
-            else:
-                comm_agents = obs_comm
-                np_tar_comm = 0
             # print(f"comm_agents:{comm_agents}")
             # print(f"np_tar_comm:{np_tar_comm}")
             # print(f"obs_comm:{obs_comm}")
@@ -1030,9 +1019,6 @@ class MAPFEnv(gym.Env):
 
             on_goals[i] = self.world.get_pos(i + 1) == self.world.get_goal(i + 1)
 
-            num_obs_comm += np.sum(obs_comm)
-            num_tar_comm += np.sum(np_tar_comm)
-            num_comm_agent += np.sum(comm_agents)
             
 
         done, num_on_goal = self.world.task_done()
@@ -1044,8 +1030,8 @@ class MAPFEnv(gym.Env):
         # print(f"num_tar_comm:{num_tar_comm}")
         # print(f"num_comm_agent:{num_comm_agent}")
 
-        return obs, vector, comm_agents, rewards, done, next_valid_actions, on_goals, blockings, valid_actions, num_blockings, \
-            leave_goals, num_on_goal, self.max_on_goal, num_collide, action_status, modify_actions, [num_obs_comm, num_tar_comm, num_comm_agent]
+        return obs, vector, obs_comm, rewards, done, next_valid_actions, on_goals, blockings, valid_actions, num_blockings, \
+            leave_goals, num_on_goal, self.max_on_goal, num_collide, action_status, modify_actions
 
     def create_rectangle(self, x, y, width, height, fill, permanent=False):
         """draw a rectangle to represent an agent"""

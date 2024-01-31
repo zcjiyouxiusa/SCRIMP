@@ -53,8 +53,11 @@ class SCRIMPNet(nn.Module):
         self.conv3 = nn.Conv2d(NetParameters.NET_SIZE // 2, NetParameters.NET_SIZE - NetParameters.GOAL_REPR_SIZE, 3,
                                1, 0)
         self.fully_connected_1 = nn.Linear(NetParameters.VECTOR_LEN, NetParameters.GOAL_REPR_SIZE)
-        self.fully_connected_2 = nn.Linear(NetParameters.NET_SIZE, NetParameters.NET_SIZE)
+        # self.fully_connected_2 = nn.Linear(NetParameters.NET_SIZE, NetParameters.NET_SIZE)
+        self.fully_connected_2 = nn.Linear(2012, NetParameters.NET_SIZE)
         self.fully_connected_3 = nn.Linear(NetParameters.NET_SIZE, NetParameters.NET_SIZE)
+        self.fully_connected_5 = nn.Linear(NetParameters.NET_SIZE, NetParameters.NET_SIZE)
+        # self.fully_connected_3 = nn.Linear(2012, NetParameters.NET_SIZE)
         self.lstm_memory = nn.LSTMCell(input_size=NetParameters.NET_SIZE, hidden_size=NetParameters.NET_SIZE // 2)
 
         # output heads
@@ -66,6 +69,8 @@ class SCRIMPNet(nn.Module):
         self.value_layer_ex = nn.Linear(NetParameters.NET_SIZE, 1)
         self.blocking_layer = nn.Linear(NetParameters.NET_SIZE, 1)
         self.message_layer = nn.Linear(NetParameters.NET_SIZE, NetParameters.NET_SIZE)
+
+        self.target_comm_agents_layer = nn.Linear(NetParameters.NET_SIZE + (NetParameters.NET_SIZE // 2), EnvParameters.N_AGENTS)
 
         # transformer based communication block
         self.communication_layer = TransformerEncoder(d_model=NetParameters.D_MODEL,
@@ -80,8 +85,11 @@ class SCRIMPNet(nn.Module):
                 nn.init.xavier_uniform_(p)
 
     # @autocast()
-    def forward(self, obs, vector, input_state, message):
+    def forward(self, obs, vector, input_state, message, obs_agents):
         """run neural network"""
+        # print(f"obs.shape:{obs.shape}")
+        # print(f"vector.shape:{vector.shape}")
+        # print(f"message.shape:{message.shape}")  # [-1, EnvParameters.N_AGENTS, NetParameters.NET_SIZE]
         num_agent = obs.shape[1]
         # obs shape:[-1, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE]
         # message shape: [-1, self.num_agent, self.num_agent, NetParameters.NET_SIZE]
@@ -89,7 +97,7 @@ class SCRIMPNet(nn.Module):
         vector = torch.reshape(vector, (-1, NetParameters.VECTOR_LEN))
         # print(f"obs shape:{obs.shape}")
         # print(f"message shape:{message.shape}")
-        message = torch.reshape(message, (-1, EnvParameters.N_AGENTS, NetParameters.NET_SIZE))
+        # message = torch.reshape(message, (-1, EnvParameters.N_AGENTS, NetParameters.NET_SIZE))
         # matrix input
         x_1 = F.relu(self.conv1(obs))
         x_1 = F.relu(self.conv1a(x_1))
@@ -100,24 +108,60 @@ class SCRIMPNet(nn.Module):
         x_1 = F.relu(self.conv2b(x_1))
         x_1 = self.pool2(x_1)
         x_1 = self.conv3(x_1)
+        # print(f"before flatten x_1.shape:{x_1.shape}")
         x_1 = F.relu(x_1.view(x_1.size(0), -1))
         # vector input
         x_2 = F.relu(self.fully_connected_1(vector))
         # Concatenation
+        # print(f"x_1.shape:{x_1.shape}")
+        # print(f"x_2.shape:{x_2.shape}")
         x_3 = torch.cat((x_1, x_2), -1)
-        h1 = F.relu(self.fully_connected_2(x_3))
+        # print(f"x_3.shape:{x_3.shape}")
+
+        # h1 = F.relu(self.fully_connected_2(x_3))
+        # print(f"1:{x_3.shape}")
+        x_3 = F.relu(self.fully_connected_2(x_3))  # 512
+        # print(f"2:{x_3.shape}")
+
+        h1 = F.relu(self.fully_connected_5(x_3))
+        # print(f"3:{h1.shape}")
+
         h1 = self.fully_connected_3(h1)
         h2 = F.relu(h1 + x_3)
         # print(f"h2.shape:{h2.shape}")
         # LSTM cell
         memories, memory_c = self.lstm_memory(h2, input_state)
+
+
+        obs_agents = torch.reshape(obs_agents, (-1, EnvParameters.N_AGENTS))  # [-1, n_agents]
+        tar_input = torch.cat([h2, memories], -1)
+        tar_agents = self.target_comm_agents_layer(tar_input)  # [-1, n_agents]
+        tar_agents = torch.sigmoid(tar_agents)
+        tar_agents[tar_agents >= NetParameters.TARGET_THRESHOLD] = 1
+        tar_agents[tar_agents < NetParameters.TARGET_THRESHOLD] = 0
+
+        # union
+        comm_agents = torch.where(tar_agents + obs_agents > 1, 1, 0)
+
+        num_comm = torch.sum(comm_agents)
+
+        # mask message
+        message = torch.reshape(message, (-1, NetParameters.NET_SIZE))
+        message_ex = message.unsqueeze(1).repeat(1, EnvParameters.N_AGENTS, 1)
+        comm_agents_ex = comm_agents.unsqueeze(2).expand(-1, -1, NetParameters.NET_SIZE)
+        # print(f"comm_agents_ex.shape:{comm_agents_ex.shape}")
+        # print(f"message_ex.shape:{message_ex.shape}")
+        masked_message = torch.mul(message_ex, comm_agents_ex)  # [-1, n_agents, net_size]
+
         # print(f"memories.shape:{memories.shape}") 
         output_state = (memories, memory_c)
         memories = torch.reshape(memories, (-1, num_agent, NetParameters.NET_SIZE // 2))  # [1, 8, 256]
         h2 = torch.reshape(h2, (-1, num_agent, NetParameters.NET_SIZE))  # [1, 8, 512]
 
+
+
         # print(f"message.device:{message.device}")
-        c1, tar_comm = self.communication_layer(message)  # c1.shape :[-1, 512], tar_comm shape :[]
+        c1 = self.communication_layer(masked_message)  # c1.shape :[-1, 512], tar_comm shape :[]
         # print(f"c1.device:{c1.device}")
 
         # print(f"c1.shape:{c1.shape}")
@@ -140,5 +184,5 @@ class SCRIMPNet(nn.Module):
         value_ex = self.value_layer_ex(c1)
         blocking = torch.sigmoid(self.blocking_layer(c1))
         message = self.message_layer(c1)
-        return policy, value_in, value_ex, blocking, policy_sig, output_state, policy_layer, message, tar_comm
+        return policy, value_in, value_ex, blocking, policy_sig, output_state, policy_layer, message, comm_agents, num_comm
 

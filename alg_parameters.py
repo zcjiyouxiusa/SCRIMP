@@ -8,7 +8,7 @@ class EnvParameters:
     N_ACTIONS = 5
     EPISODE_LEN = 512  # maximum episode length in training
     FOV_SIZE = 10
-    WORLD_SIZE = (200, 30)
+    WORLD_SIZE = (200, 300)
     OBSTACLE_PROB = (0.0, 0.5)
     ACTION_COST = -0.3
     IDLE_COST = -0.3
@@ -51,7 +51,7 @@ class NetParameters:
     D_K = 32
     D_V = 32
 
-    TARGET_THRESHOLD = 0.3
+    TARGET_THRESHOLD = 0.5
 
 
 class TieBreakingParameters:
@@ -75,14 +75,14 @@ class SetupParameters:
 
 class RecordingParameters:
     RETRAIN = False
-    WANDB =  False
+    WANDB =  True
     TENSORBOARD = True
     TXT_WRITER =  True
     LOGGER = True
     ENTITY = 'zhaochuang'
     TIME = datetime.datetime.now().strftime('%d-%m-%y%H%M')
     EXPERIMENT_PROJECT = 'SCRIMP'
-    EXPERIMENT_NAME = 'restrict_comm_target'
+    EXPERIMENT_NAME = 'restrict_comm_target0.5'
     EXPERIMENT_NOTE = ''
     SAVE_INTERVAL = 5e5  # interval of saving model
     BEST_INTERVAL = 0  # interval of saving model with the best performance

@@ -12,15 +12,14 @@ class Encoder(nn.Module):
         """create multiple computation blocks"""
         super(Encoder, self).__init__()
         self.layer_stack = nn.ModuleList([EncoderLayer(d_model, d_hidden, n_head, d_k, d_v) for _ in range(n_layers)])
-        self.mean_pool = nn.AvgPool1d(kernel_size=NetParameters.NET_SIZE, stride=1)
-        self.sigmoid = nn.Sigmoid()
+        # self.mean_pool = nn.AvgPool1d(kernel_size=NetParameters.NET_SIZE, stride=1)
+        # self.sigmoid = nn.Sigmoid()
 
     def forward(self, enc_output, return_attns=False):
         """use self attention to merge messages"""
         # enc_output shape:[-1, 8, 512]
         enc_slf_attn_list = []
         enc_out = torch.zeros(enc_output.shape[0], NetParameters.NET_SIZE).to(enc_output.device)
-        target_comm = torch.zeros(enc_output.shape[0], EnvParameters.N_AGENTS).to(enc_output.device)
         for i in range(enc_output.shape[0]):
             # each agent
             
@@ -32,18 +31,18 @@ class Encoder(nn.Module):
                 enc_slf_attn_list += [enc_slf_attn] if return_attns else []
 
             # print(f"after encode enc_input.shape:{enc_input.shape}")  # [1, 8, 512]
-            target_comm_agent = self.mean_pool(enc_input)  
-            # print(f"target_comm_agent.shape:{target_comm_agent.shape}")  # [1, 8, 1]
-            target_comm_agent = torch.squeeze(target_comm_agent, 2)  
-            # print(f"after squeeze target_comm_agent.shape:{target_comm_agent.shape}")  # target_comm_agent shape:[1, 8]
-            # print(f"after squeeze target_comm_agent:{target_comm_agent}")  # target_comm_agent shape:[1, 8]
+            # target_comm_agent = self.mean_pool(enc_input)  
+            # # print(f"target_comm_agent.shape:{target_comm_agent.shape}")  # [1, 8, 1]
+            # target_comm_agent = torch.squeeze(target_comm_agent, 2)  
+            # # print(f"after squeeze target_comm_agent.shape:{target_comm_agent.shape}")  # target_comm_agent shape:[1, 8]
+            # # print(f"after squeeze target_comm_agent:{target_comm_agent}")  # target_comm_agent shape:[1, 8]
             
-            target_comm_agent = self.sigmoid(target_comm_agent)  # target_comm_agent shape:[1, 8]
-            # print(f"after sigmoid target_comm_agent.shape:{target_comm_agent.shape}")  # target_comm_agent shape:[1, 8]
-            target_comm_agent[target_comm_agent >= NetParameters.TARGET_THRESHOLD] = 1
-            target_comm_agent[target_comm_agent < NetParameters.TARGET_THRESHOLD] = 0
-            # print(f"after project target_comm_agent.shape:{target_comm_agent.shape}")  # target_comm_agent shape:[1, 8]
-            target_comm[i] = target_comm_agent.squeeze()
+            # target_comm_agent = self.sigmoid(target_comm_agent)  # target_comm_agent shape:[1, 8]
+            # # print(f"after sigmoid target_comm_agent.shape:{target_comm_agent.shape}")  # target_comm_agent shape:[1, 8]
+            # target_comm_agent[target_comm_agent >= NetParameters.TARGET_THRESHOLD] = 1
+            # target_comm_agent[target_comm_agent < NetParameters.TARGET_THRESHOLD] = 0
+            # # print(f"after project target_comm_agent.shape:{target_comm_agent.shape}")  # target_comm_agent shape:[1, 8]
+            # target_comm[i] = target_comm_agent.squeeze()
             
             enc_input = enc_input.squeeze()
             
@@ -55,9 +54,9 @@ class Encoder(nn.Module):
             # print(f"enc_input.squeeze()[i % 8].shape:{enc_input.squeeze()[i % 8].shape}")
             # enc_out[i, :] = enc_input[0, i % 8, :]
         if return_attns:
-            return enc_out, enc_slf_attn_list, target_comm
+            return enc_out, enc_slf_attn_list
         # print(f"enc_out.shape:{enc_out.shape}")
-        return enc_out, target_comm
+        return enc_out
 
 
 class PositionalEncoding(nn.Module):
@@ -103,8 +102,8 @@ class TransformerEncoder(nn.Module):
         encoder_input1 = self.position_enc(encoder_input)
         # print(f"encoder_input1.device:{encoder_input1.device}")
         
-        enc_output, tar_comm = self.encoder(encoder_input1)
+        enc_output = self.encoder(encoder_input1)
         # print(f"enc_output.device:{enc_output.device}")
 
         # print(f"enc_output.shape:{enc_output.shape}")
-        return enc_output, tar_comm  # [-1, 512]
+        return enc_output  # [-1, 512]

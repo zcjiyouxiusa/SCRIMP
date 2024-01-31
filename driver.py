@@ -21,7 +21,7 @@ from runner import Runner
 import logging
 from util import set_global_seeds, write_to_tensorboard, write_to_wandb, make_gif, reset_env, one_step, update_perf, get_logger
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "5, 6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1, 2"
 ray.init(num_gpus=SetupParameters.NUM_GPU)
 print("Welcome to SCRIMP on MAPF!\n")
 
@@ -139,14 +139,14 @@ def main():
             if demon:
                 # get imitation learning data
                 mb_obs, mb_vector, mb_actions, mb_hidden_state = [], [], [], []
-                mb_message, mb_comm_agents = [], []
+                mb_message, mb_obs_agents = [], []
                 for results in range(done_len):
                     mb_obs.append(job_results[results][0])
                     mb_vector.append(job_results[results][1])
                     mb_actions.append(job_results[results][2])
                     mb_hidden_state.append(job_results[results][3])
                     mb_message.append(job_results[results][4])
-                    mb_comm_agents.append(job_results[results][5])
+                    mb_obs_agents.append(job_results[results][5])
                     curr_episodes += job_results[results][-2]
                     curr_steps += job_results[results][-1]
                 mb_obs = np.concatenate(mb_obs, axis=0)
@@ -154,7 +154,7 @@ def main():
                 mb_hidden_state = np.concatenate(mb_hidden_state, axis=0)
                 mb_actions = np.concatenate(mb_actions, axis=0)
                 mb_message = np.concatenate(mb_message, axis=0)
-                mb_comm_agents = np.concatenate(mb_comm_agents, axis=0)
+                mb_obs_agents = np.concatenate(mb_obs_agents, axis=0)
 
                 # training of imitation learning
                 mb_imitation_loss = []
@@ -162,7 +162,7 @@ def main():
                     log.info(f"IL:[{start}/{np.shape(mb_obs)[0]}]")
                     end = start + TrainingParameters.MINIBATCH_SIZE
                     slices = (arr[start:end] for arr in
-                              (mb_obs, mb_vector, mb_actions, mb_hidden_state, mb_message, mb_comm_agents))
+                              (mb_obs, mb_vector, mb_actions, mb_hidden_state, mb_message, mb_obs_agents))
                     mb_imitation_loss.append(global_model.imitation_train(*slices))
                 mb_imitation_loss = np.nanmean(mb_imitation_loss, axis=0)
 
@@ -178,12 +178,17 @@ def main():
                     mb_values_ex, mb_values_all, mb_actions, mb_ps, mb_hidden_state, mb_train_valid,\
                     mb_blocking = [], [], [], [], [], [], [], [], [], [], [], [], []
                 mb_message = []
-                mb_comm_agents = []
+                mb_obs_agents = []
                 performance_dict = {'per_r': [], 'per_in_r': [], 'per_ex_r': [], 'per_valid_rate': [],
                                     'per_episode_len': [], 'per_block': [],
                                     'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [],
                                     'per_block_acc': [], 'per_max_goals': [], 'per_num_collide': [],
-                                    'rewarded_rate': [], 'per_num_tar_comm': [], 'per_num_comm': []}
+                                    'rewarded_rate': [], 'per_num_obs_comm': [], 'per_num_comm': []}
+                # performance_dict = {'per_r': [], 'per_in_r': [], 'per_ex_r': [], 'per_valid_rate': [],
+                #                     'per_episode_len': [], 'per_block': [],
+                #                     'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [],
+                #                     'per_block_acc': [], 'per_max_goals': [], 'per_num_collide': [],
+                #                     'rewarded_rate': []}
                 for results in range(done_len):
                     mb_obs.append(job_results[results][0])
                     mb_vector.append(job_results[results][1])
@@ -199,7 +204,7 @@ def main():
                     mb_train_valid.append(job_results[results][11])
                     mb_blocking.append(job_results[results][12])
                     mb_message.append(job_results[results][13]) 
-                    mb_comm_agents.append(job_results[results][14])
+                    mb_obs_agents.append(job_results[results][14])
                     curr_episodes += job_results[results][-2]
                     for i in performance_dict.keys():
                         performance_dict[i].append(np.nanmean(job_results[results][-1][i]))
@@ -223,7 +228,7 @@ def main():
                 mb_message = np.concatenate(mb_message, axis=0)  # mb_message shape:[done_len * TrainingParameters.N_STEPS, num_agent, num_agent, NET_SIZE]
                 # print(f"mb_message:{mb_message.shape}")
                 # print(f"mb_obs:{mb_obs.shape}")
-                mb_comm_agents = np.concatenate(mb_comm_agents, axis=0)
+                mb_obs_agents = np.concatenate(mb_obs_agents, axis=0)
                 
                 # training of reinforcement learning
                 mb_loss = []
@@ -238,7 +243,7 @@ def main():
                         slices = (arr[mb_inds] for arr in
                                   (mb_obs, mb_vector, mb_returns_in, mb_returns_ex, mb_returns_all, mb_values_in,
                                    mb_values_ex, mb_values_all, mb_actions, mb_ps, mb_hidden_state,
-                                   mb_train_valid, mb_blocking, mb_message, mb_comm_agents))
+                                   mb_train_valid, mb_blocking, mb_message, mb_obs_agents))
                         mb_loss.append(global_model.train(*slices))
 
                 # record training result
@@ -250,7 +255,7 @@ def main():
             if (curr_steps - last_test_t) / RecordingParameters.EVAL_INTERVAL >= 1.0:
                 # if save gif
                 if (curr_steps - last_gif_t) / RecordingParameters.GIF_INTERVAL >= 1.0:
-                    # save_gif = True
+                    save_gif = True
                     save_gif = False
                     last_gif_t = curr_steps
                 else:
@@ -333,7 +338,7 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
     eval_performance_dict = {'per_r': [], 'per_ex_r': [], 'per_in_r': [], 'per_valid_rate': [], 'per_episode_len': [],
                              'per_block': [], 'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [],
                              'per_block_acc': [], 'per_max_goals': [], 'per_num_collide': [], 'rewarded_rate': [],
-                             'per_num_tar_comm': [], 'per_num_comm': []}
+                             'per_num_obs_comm': [], 'per_num_comm': []}
     episode_frames = []
 
     for i in range(RecordingParameters.EVAL_EPISODES):
@@ -344,32 +349,35 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
         hidden_state = (torch.zeros((num_agent, NetParameters.NET_SIZE // 2)).to(device),
                         torch.zeros((num_agent, NetParameters.NET_SIZE // 2)).to(device))
 
-        done, valid_actions, obs, vector, comm_agents, _ = reset_env(eval_env, num_agent)
+        done, valid_actions, obs, vector, comm_agents, obs_agents, _ = reset_env(eval_env, num_agent)
         episodic_buffer.reset(curr_steps, num_agent)
         new_xy = eval_env.get_positions()
         episodic_buffer.batch_add(new_xy)
 
         one_episode_perf = {'num_step': 0, 'episode_reward': 0, 'invalid': 0, 'block': 0,
                             'num_leave_goal': 0, 'wrong_blocking': 0, 'num_collide': 0, 'reward_count': 0,
-                            'ex_reward': 0, 'in_reward': 0, 'num_target_comm': 0, 'num_comm': 0}
+                            'ex_reward': 0, 'in_reward': 0, 'obs_comm': 0, 'num_comm': 0}
         if save_gif:
             episode_frames.append(eval_env._render(mode='rgb_array', screen_width=900, screen_height=900))
 
         # stepping
         while not done:
             # predict
-            actions, pre_block, hidden_state, num_invalid, v_all, ps, message, tar_comm = model.evaluate(obs, vector,
-                                                                                               valid_actions,
-                                                                                               hidden_state,
-                                                                                               greedy,
-                                                                                               episodic_buffer.no_reward,
-                                                                                               message, comm_agents, num_agent)
+            actions, pre_block, hidden_state, num_invalid, v_all, ps, message, comm_agents, num_comm = model.evaluate(obs, vector,
+                                                                                                        valid_actions,
+                                                                                                        hidden_state,
+                                                                                                        greedy,
+                                                                                                        episodic_buffer.no_reward,
+                                                                                                        message, obs_agents, num_agent)
+            
+            one_episode_perf['num_comm'] += np.sum(num_comm.cpu().numpy())
+            
             one_episode_perf['invalid'] += num_invalid
 
             # move
-            rewards, valid_actions, obs, vector, comm_agents, _, done, _, num_on_goals, one_episode_perf, max_on_goals, \
+            rewards, valid_actions, obs, vector, obs_agents, _, done, _, num_on_goals, one_episode_perf, max_on_goals, \
                 _, _, on_goal = one_step(eval_env, one_episode_perf, actions, pre_block, model, v_all, hidden_state,
-                                         ps, episodic_buffer.no_reward, message, comm_agents, tar_comm, episodic_buffer, num_agent)
+                                         ps, episodic_buffer.no_reward, message, obs_agents, episodic_buffer, num_agent)
 
             new_xy = eval_env.get_positions()
             processed_rewards, be_rewarded, intrinsic_reward, min_dist = episodic_buffer.if_reward(new_xy, rewards,
