@@ -137,6 +137,7 @@ class SCRIMPNet(nn.Module):
         tar_input = torch.cat([h2, memories], -1)
         tar_agents = self.target_comm_agents_layer(tar_input)  # [-1, n_agents]
         tar_agents = torch.sigmoid(tar_agents)
+        sig_tar_agents = tar_agents.clone()
         tar_agents[tar_agents >= NetParameters.TARGET_THRESHOLD] = 1
         tar_agents[tar_agents < NetParameters.TARGET_THRESHOLD] = 0
 
@@ -184,5 +185,5 @@ class SCRIMPNet(nn.Module):
         value_ex = self.value_layer_ex(c1)
         blocking = torch.sigmoid(self.blocking_layer(c1))
         message = self.message_layer(c1)
-        return policy, value_in, value_ex, blocking, policy_sig, output_state, policy_layer, message, comm_agents, num_comm
+        return policy, value_in, value_ex, blocking, policy_sig, output_state, policy_layer, message, comm_agents, num_comm, sig_tar_agents
 

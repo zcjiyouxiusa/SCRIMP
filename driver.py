@@ -21,7 +21,7 @@ from runner import Runner
 import logging
 from util import set_global_seeds, write_to_tensorboard, write_to_wandb, make_gif, reset_env, one_step, update_perf, get_logger
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1, 2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3, 4"
 ray.init(num_gpus=SetupParameters.NUM_GPU)
 print("Welcome to SCRIMP on MAPF!\n")
 
@@ -183,7 +183,7 @@ def main():
                                     'per_episode_len': [], 'per_block': [],
                                     'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [],
                                     'per_block_acc': [], 'per_max_goals': [], 'per_num_collide': [],
-                                    'rewarded_rate': [], 'per_num_obs_comm': [], 'per_num_comm': []}
+                                    'rewarded_rate': [], 'per_num_obs_comm': [], 'per_num_comm': [], 'per_sig_tar_agents': []}
                 # performance_dict = {'per_r': [], 'per_in_r': [], 'per_ex_r': [], 'per_valid_rate': [],
                 #                     'per_episode_len': [], 'per_block': [],
                 #                     'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [],
@@ -338,7 +338,7 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
     eval_performance_dict = {'per_r': [], 'per_ex_r': [], 'per_in_r': [], 'per_valid_rate': [], 'per_episode_len': [],
                              'per_block': [], 'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [],
                              'per_block_acc': [], 'per_max_goals': [], 'per_num_collide': [], 'rewarded_rate': [],
-                             'per_num_obs_comm': [], 'per_num_comm': []}
+                             'per_num_obs_comm': [], 'per_num_comm': [], 'per_sig_tar_agents': []}
     episode_frames = []
 
     for i in range(RecordingParameters.EVAL_EPISODES):
@@ -356,14 +356,14 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
 
         one_episode_perf = {'num_step': 0, 'episode_reward': 0, 'invalid': 0, 'block': 0,
                             'num_leave_goal': 0, 'wrong_blocking': 0, 'num_collide': 0, 'reward_count': 0,
-                            'ex_reward': 0, 'in_reward': 0, 'obs_comm': 0, 'num_comm': 0}
+                            'ex_reward': 0, 'in_reward': 0, 'obs_comm': 0, 'num_comm': 0, 'sig_tar_agents':[]}
         if save_gif:
             episode_frames.append(eval_env._render(mode='rgb_array', screen_width=900, screen_height=900))
 
         # stepping
         while not done:
             # predict
-            actions, pre_block, hidden_state, num_invalid, v_all, ps, message, comm_agents, num_comm = model.evaluate(obs, vector,
+            actions, pre_block, hidden_state, num_invalid, v_all, ps, message, comm_agents, num_comm, sig_tar_agents = model.evaluate(obs, vector,
                                                                                                         valid_actions,
                                                                                                         hidden_state,
                                                                                                         greedy,
@@ -373,7 +373,7 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
             one_episode_perf['num_comm'] += np.sum(num_comm.cpu().numpy())
             
             one_episode_perf['invalid'] += num_invalid
-
+            one_episode_perf['sig_tar_agents'].append(sig_tar_agents)
             # move
             rewards, valid_actions, obs, vector, obs_agents, _, done, _, num_on_goals, one_episode_perf, max_on_goals, \
                 _, _, on_goal = one_step(eval_env, one_episode_perf, actions, pre_block, model, v_all, hidden_state,

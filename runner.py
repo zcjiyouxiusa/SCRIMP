@@ -23,7 +23,7 @@ class Runner(object):
         self.imitation_num_agent = EnvParameters.N_AGENTS
         self.one_episode_perf = {'num_step': 0, 'episode_reward': 0, 'invalid': 0, 'block': 0, 'num_leave_goal': 0,
                                  'wrong_blocking': 0, 'num_collide': 0, 'reward_count': 0, 'ex_reward': 0,
-                                 'in_reward': 0, 'obs_comm': 0, 'num_comm': 0}
+                                 'in_reward': 0, 'obs_comm': 0, 'num_comm': 0, 'sig_tar_agents':[]}
         # self.one_episode_perf = {'num_step': 0, 'episode_reward': 0, 'invalid': 0, 'block': 0, 'num_leave_goal': 0,
         #                          'wrong_blocking': 0, 'num_collide': 0, 'reward_count': 0, 'ex_reward': 0,
         #                          'in_reward': 0}
@@ -61,7 +61,7 @@ class Runner(object):
                                 'per_episode_len': [], 'per_block': [],
                                 'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [], 'per_block_acc': [],
                                 'per_max_goals': [], 'per_num_collide': [], 'rewarded_rate': [],
-                                'per_num_obs_comm': [], 'per_num_comm': []}
+                                'per_num_obs_comm': [], 'per_num_comm': [], 'per_sig_tar_agents': []}
             # performance_dict = {'per_r': [], 'per_in_r': [], 'per_ex_r': [], 'per_valid_rate': [],
             #                     'per_episode_len': [], 'per_block': [],
             #                     'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [], 'per_block_acc': [],
@@ -76,12 +76,12 @@ class Runner(object):
                     [self.hidden_state[0].cpu().detach().numpy(), self.hidden_state[1].cpu().detach().numpy()])
                 mb_message.append(self.message)
                 mb_obs_agents.append(self.obs_agents)
-                actions, ps, values_in, values_ex, values_all, pre_block, self.hidden_state, num_invalid, self.message, self.comm_agents, num_comm = \
+                actions, ps, values_in, values_ex, values_all, pre_block, self.hidden_state, num_invalid, self.message, self.comm_agents, num_comm, sig_tar_agents = \
                     self.local_model.step(self.obs, self.vector, self.valid_actions, self.hidden_state,
                                           self.episodic_buffer.no_reward, self.message, self.obs_agents, self.num_agent)
 
                 self.one_episode_perf['num_comm'] += np.sum(num_comm.numpy())
-
+                self.one_episode_perf['sig_tar_agents'].append(sig_tar_agents) 
                 self.one_episode_perf['invalid'] += num_invalid
                 mb_values_in.append(values_in)
                 mb_values_ex.append(values_ex)
@@ -130,7 +130,7 @@ class Runner(object):
                                                    self.num_agent)
                     self.one_episode_perf = {'num_step': 0, 'episode_reward': 0, 'invalid': 0, 'block': 0,
                                              'num_leave_goal': 0, 'wrong_blocking': 0, 'num_collide': 0,
-                                             'reward_count': 0, 'ex_reward': 0, 'in_reward': 0, 'obs_comm': 0, 'num_comm': 0}
+                                             'reward_count': 0, 'ex_reward': 0, 'in_reward': 0, 'obs_comm': 0, 'num_comm': 0, 'sig_tar_agents': []}
                     # self.one_episode_perf = {'num_step': 0, 'episode_reward': 0, 'invalid': 0, 'block': 0,
                     #                          'num_leave_goal': 0, 'wrong_blocking': 0, 'num_collide': 0,
                     #                          'reward_count': 0, 'ex_reward': 0, 'in_reward': 0, 'num_target_comm': 0, 'num_comm': 0}
@@ -293,7 +293,7 @@ class Runner(object):
             mb_message.append(message)
             mb_obs_agents.append(obs_agents)
 
-            hidden_state, message, num_comm = self.local_model.generate_state(obs, vector, hidden_state, message, obs_agents)
+            hidden_state, message, num_comm, sig_tar_agents = self.local_model.generate_state(obs, vector, hidden_state, message, obs_agents)
 
             actions = np.zeros(self.imitation_num_agent)
             for i in range(self.imitation_num_agent):

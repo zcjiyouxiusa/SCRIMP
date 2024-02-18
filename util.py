@@ -104,6 +104,7 @@ def write_to_wandb(step, performance_dict=None, mb_loss=None, imitation_loss=Non
             wandb.log({'Perf_greedy_eval/Num_collide': performance_dict['per_num_collide']}, step=step)
             wandb.log({'Perf_greedy_eval/Num_obs_comm': performance_dict['per_num_obs_comm']}, step=step)
             wandb.log({'Perf_greedy_eval/Num_comm': performance_dict['per_num_comm']}, step=step)
+            wandb.log({'Perf_greedy_eval/Sig_tar_agents': performance_dict['per_sig_tar_agents']}, step=step)
 
         else:
             wandb.log({'Perf_random_eval/Reward': performance_dict['per_r']}, step=step)
@@ -120,6 +121,7 @@ def write_to_wandb(step, performance_dict=None, mb_loss=None, imitation_loss=Non
             wandb.log({'Perf_random_eval/Num_collide': performance_dict['per_num_collide']}, step=step)
             wandb.log({'Perf_random_eval/Num_obs_comm': performance_dict['per_num_obs_comm']}, step=step)
             wandb.log({'Perf_random_eval/Num_comm': performance_dict['per_num_comm']}, step=step)
+            wandb.log({'Perf_random_eval/Sig_tar_agents': performance_dict['per_sig_tar_agents']}, step=step)
 
     else:
         loss_vals = np.nanmean(mb_loss, axis=0)
@@ -138,6 +140,7 @@ def write_to_wandb(step, performance_dict=None, mb_loss=None, imitation_loss=Non
         wandb.log({'Perf/Rewarded_rate': performance_dict['rewarded_rate']},step=step)
         wandb.log({'Perf/Num_obs_comm': performance_dict['per_num_obs_comm']}, step=step)
         wandb.log({'Perf/Num_comm': performance_dict['per_num_comm']}, step=step)
+        wandb.log({'Perf/Sig_tar_agents': performance_dict['per_sig_tar_agents']}, step=step)
 
         for (val, name) in zip(loss_vals, RecordingParameters.LOSS_NAME):
             if name == 'grad_norm':
@@ -223,8 +226,10 @@ def update_perf(one_episode_perf, performance_dict, num_on_goals, max_on_goals, 
         one_episode_perf['reward_count'] / (one_episode_perf['num_step'] * num_agent))
     performance_dict['per_num_obs_comm'].append(one_episode_perf['obs_comm'])
     performance_dict['per_num_comm'].append(one_episode_perf['num_comm'])
+    performance_dict['per_sig_tar_agents'].append(one_episode_perf['sig_tar_agents'])
     print(f"per_num_obs_comm:{performance_dict['per_num_obs_comm']}")
     print(f"per_num_comm:{performance_dict['per_num_comm']}")
+    print(f"per_sig_tar_agents:{performance_dict['per_sig_tar_agents']}")
     # print(f"after update_perf_dict:{performance_dict}")
     return performance_dict
 
