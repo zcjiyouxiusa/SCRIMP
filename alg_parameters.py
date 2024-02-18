@@ -51,7 +51,8 @@ class NetParameters:
     D_K = 32
     D_V = 32
 
-    TARGET_THRESHOLD = 1
+    # TARGET_THRESHOLD = 1
+    COMM_THRESHOLD = 0
 
 
 class TieBreakingParameters:
@@ -81,8 +82,8 @@ class RecordingParameters:
     LOGGER = True
     ENTITY = 'zhaochuang'
     TIME = datetime.datetime.now().strftime('%d-%m-%y%H%M')
-    EXPERIMENT_PROJECT = 'target_MAPF'
-    EXPERIMENT_NAME = 'restrict_comm_target1.0'
+    EXPERIMENT_PROJECT = 'param_target'
+    EXPERIMENT_NAME = 'param_target0'
     EXPERIMENT_NOTE = ''
     SAVE_INTERVAL = 5e5  # interval of saving model
     BEST_INTERVAL = 0  # interval of saving model with the best performance

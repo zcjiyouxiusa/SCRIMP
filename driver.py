@@ -21,7 +21,7 @@ from runner import Runner
 import logging
 from util import set_global_seeds, write_to_tensorboard, write_to_wandb, make_gif, reset_env, one_step, update_perf, get_logger
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3, 4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5, 6"
 ray.init(num_gpus=SetupParameters.NUM_GPU)
 print("Welcome to SCRIMP on MAPF!\n")
 

@@ -41,6 +41,7 @@ class SCRIMPNet(nn.Module):
     def __init__(self):
         """initialization"""
         super(SCRIMPNet, self).__init__()
+        self.local_device = torch.device('cuda') if SetupParameters.USE_GPU_LOCAL else torch.device('cpu')
         # observation encoder
         self.conv1 = nn.Conv2d(NetParameters.NUM_CHANNEL, NetParameters.NET_SIZE // 4, 2, 1, 1)
         self.conv1a = nn.Conv2d(NetParameters.NET_SIZE // 4, NetParameters.NET_SIZE // 4, 2, 1, 1)
@@ -137,12 +138,20 @@ class SCRIMPNet(nn.Module):
         tar_input = torch.cat([h2, memories], -1)
         tar_agents = self.target_comm_agents_layer(tar_input)  # [-1, n_agents]
         tar_agents = torch.sigmoid(tar_agents)
+
         sig_tar_agents = tar_agents.clone()
-        tar_agents[tar_agents >= NetParameters.TARGET_THRESHOLD] = 1
-        tar_agents[tar_agents < NetParameters.TARGET_THRESHOLD] = 0
+        # tar_agents[tar_agents >= NetParameters.TARGET_THRESHOLD] = 1
+        # tar_agents[tar_agents < NetParameters.TARGET_THRESHOLD] = 0
+
+        # use 
+        tb = torch.zeros(tar_agents.shape).to(tar_agents.device)
+        tb[(torch.arange(len(tar_agents)).unsqueeze(1), torch.topk(tar_agents,NetParameters.COMM_THRESHOLD).indices)] = 1
+        # _, pred = tar_agents.topk(NetParameters.COMM_THRESHOLD, 1, True, False)
+        # print(f"tb:{tb}")
+        # print(f"tb shape:{tb.shape}")
 
         # union
-        comm_agents = torch.where(tar_agents + obs_agents > 1, 1, 0)
+        comm_agents = torch.where(tb + obs_agents > 1, 1, 0)
 
         num_comm = torch.sum(comm_agents)
 
