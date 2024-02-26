@@ -21,7 +21,7 @@ from runner import Runner
 import logging
 from util import set_global_seeds, write_to_tensorboard, write_to_wandb, make_gif, reset_env, one_step, update_perf, get_logger
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "5, 6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6, 7"
 ray.init(num_gpus=SetupParameters.NUM_GPU)
 print("Welcome to SCRIMP on MAPF!\n")
 
@@ -30,7 +30,7 @@ def main():
     """main code"""
     # preparing for training
     if RecordingParameters.RETRAIN:
-        restore_path = './local_model'
+        restore_path = './models/target_MAPF/restrict_comm_target123-02-241714/final'
         net_path_checkpoint = restore_path + "/net_checkpoint.pkl"
         net_dict = torch.load(net_path_checkpoint)
 
@@ -56,7 +56,7 @@ def main():
 
     if RecordingParameters.TENSORBOARD:
         if RecordingParameters.RETRAIN:
-            summary_path = ''
+            summary_path = './summaries/target_MAPF/restrict_comm_target1.018-02-241146'
         else:
             summary_path = RecordingParameters.SUMMARY_PATH
         if not os.path.exists(summary_path):
@@ -94,7 +94,8 @@ def main():
     if RecordingParameters.RETRAIN:
         curr_steps = net_dict["step"]
         curr_episodes = net_dict["episode"]
-        best_perf = net_dict["reward"]
+        # best_perf = net_dict["reward"]
+        best_perf = 0
     else:
         curr_steps = curr_episodes = best_perf = 0
 
@@ -188,7 +189,7 @@ def main():
                 #                     'per_episode_len': [], 'per_block': [],
                 #                     'per_leave_goal': [], 'per_final_goals': [], 'per_half_goals': [],
                 #                     'per_block_acc': [], 'per_max_goals': [], 'per_num_collide': [],
-                #                     'rewarded_rate': []}
+                #                     'rewarded_rate': [] }
                 for results in range(done_len):
                     mb_obs.append(job_results[results][0])
                     mb_vector.append(job_results[results][1])
@@ -207,10 +208,24 @@ def main():
                     mb_obs_agents.append(job_results[results][14])
                     curr_episodes += job_results[results][-2]
                     for i in performance_dict.keys():
-                        performance_dict[i].append(np.nanmean(job_results[results][-1][i]))
+                        if i != 'per_sig_tar_agents':
+                            performance_dict[i].append(np.nanmean(job_results[results][-1][i]))
+                        else:
+                            # print(f"job_results[results][-1][i]:{job_results[results][-1][i]}")
+                            # print(f"job_results[results][-1][i][0]:{job_results[results][-1][i][0]}")
+                            # print(f"type: job_results[results][-1][i][0]:{type(job_results[results][-1][i][0])}")
+                            performance_dict[i].append(np.nanmean(job_results[results][-1][i], axis=0))
 
+                # print(f"==========================================")
+
+                # print(f"performance_dict['per_sig_tar_agents']:{performance_dict['per_sig_tar_agents']}")
                 for i in performance_dict.keys():
-                    performance_dict[i] = np.nanmean(performance_dict[i])
+                    if i != 'per_sig_tar_agents':
+                        performance_dict[i] = np.nanmean(performance_dict[i])
+                    else:
+                        performance_dict[i] = np.nanmean(performance_dict[i], axis=0)[0]  # 取第一个agent的policy
+
+
 
                 mb_obs = np.concatenate(mb_obs, axis=0)  # mb_obs shape:[done_len * TrainingParameters.N_STEPS, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE]
                 mb_vector = np.concatenate(mb_vector, axis=0)
@@ -414,7 +429,10 @@ def evaluate(eval_env, episodic_buffer, model, device, save_gif, curr_steps, gre
 
     # average performance of multiple episodes
     for i in eval_performance_dict.keys():
-        eval_performance_dict[i] = np.nanmean(eval_performance_dict[i])
+        if i != 'per_sig_tar_agents':
+            eval_performance_dict[i] = np.nanmean(eval_performance_dict[i])
+        else:
+            eval_performance_dict[i] = np.nanmean(eval_performance_dict[i], axis=0)[0]
 
     return eval_performance_dict
 

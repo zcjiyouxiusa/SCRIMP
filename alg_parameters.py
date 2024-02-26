@@ -33,7 +33,7 @@ class TrainingParameters:
     N_EPOCHS = 1
     N_ENVS = 16  # number of processes
     N_MAX_STEPS = 3e7  # maximum number of time steps used in training
-    N_STEPS = 2 ** 8  # number of time steps per process per data collection
+    N_STEPS = 2 ** 10  # number of time steps per process per data collection
     MINIBATCH_SIZE = int(2 ** 8)
     DEMONSTRATION_PROB = 0.1  # imitation learning rate
 
@@ -51,8 +51,8 @@ class NetParameters:
     D_K = 32
     D_V = 32
 
-    # TARGET_THRESHOLD = 1
-    COMM_THRESHOLD = 0
+    TARGET_THRESHOLD = 1
+    # COMM_THRESHOLD = 16
 
 
 class TieBreakingParameters:
@@ -75,15 +75,15 @@ class SetupParameters:
     NUM_GPU = 2
 
 class RecordingParameters:
-    RETRAIN = False
+    RETRAIN = True
     WANDB =  True
     TENSORBOARD = True
     TXT_WRITER =  True
     LOGGER = True
     ENTITY = 'zhaochuang'
     TIME = datetime.datetime.now().strftime('%d-%m-%y%H%M')
-    EXPERIMENT_PROJECT = 'param_target'
-    EXPERIMENT_NAME = 'param_target0'
+    EXPERIMENT_PROJECT = 'target_MAPF'
+    EXPERIMENT_NAME = 'restrict_comm_target1'
     EXPERIMENT_NOTE = ''
     SAVE_INTERVAL = 5e5  # interval of saving model
     BEST_INTERVAL = 0  # interval of saving model with the best performance

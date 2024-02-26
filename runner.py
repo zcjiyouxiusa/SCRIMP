@@ -70,6 +70,7 @@ class Runner(object):
 
             self.local_model.set_weights(weights)
             for _ in range(TrainingParameters.N_STEPS):
+                # print(f"self.one_episode_perf['num_step']:{self.one_episode_perf['num_step']}")
                 mb_obs.append(self.obs)  # self.obs shape:[1, num_agent, NetParameters.NUM_CHANNEL, EnvParameters.FOV_SIZE, EnvParameters.FOV_SIZE]
                 mb_vector.append(self.vector)
                 mb_hidden_state.append(
@@ -79,7 +80,8 @@ class Runner(object):
                 actions, ps, values_in, values_ex, values_all, pre_block, self.hidden_state, num_invalid, self.message, self.comm_agents, num_comm, sig_tar_agents = \
                     self.local_model.step(self.obs, self.vector, self.valid_actions, self.hidden_state,
                                           self.episodic_buffer.no_reward, self.message, self.obs_agents, self.num_agent)
-
+                # print(f"sig_tar_agents.shape:{sig_tar_agents.shape}")
+                # print(f"type:sig_tar_agents:{type(sig_tar_agents)}")
                 self.one_episode_perf['num_comm'] += np.sum(num_comm.numpy())
                 self.one_episode_perf['sig_tar_agents'].append(sig_tar_agents) 
                 self.one_episode_perf['invalid'] += num_invalid
@@ -211,7 +213,10 @@ class Runner(object):
             mb_returns_ex = np.add(mb_advs_ex, mb_values_ex)
             mb_returns_all = np.add(mb_advs_all, mb_values_all)
 
-        # print(f"return performance_dict:{performance_dict}")
+        # print(f"-----------------------------------------")
+        # print(f"return performance_dict['per_episode_len']:{performance_dict['per_episode_len']}")
+        # print(f"return performance_dict['per_sig_tar_agents']:{performance_dict['per_sig_tar_agents']}")
+
 
         return mb_obs, mb_vector, mb_returns_in, mb_returns_ex, mb_returns_all, mb_values_in, mb_values_ex, \
             mb_values_all, mb_actions, mb_ps, mb_hidden_state, mb_train_valid, mb_blocking, mb_message, mb_obs_agents, \

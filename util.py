@@ -226,10 +226,13 @@ def update_perf(one_episode_perf, performance_dict, num_on_goals, max_on_goals, 
         one_episode_perf['reward_count'] / (one_episode_perf['num_step'] * num_agent))
     performance_dict['per_num_obs_comm'].append(one_episode_perf['obs_comm'])
     performance_dict['per_num_comm'].append(one_episode_perf['num_comm'])
-    performance_dict['per_sig_tar_agents'].append(one_episode_perf['sig_tar_agents'])
-    print(f"per_num_obs_comm:{performance_dict['per_num_obs_comm']}")
-    print(f"per_num_comm:{performance_dict['per_num_comm']}")
-    print(f"per_sig_tar_agents:{performance_dict['per_sig_tar_agents']}")
+    # print("```````````````````````````````````````")
+    # print(f"one_episode_perf['num_comm']:{one_episode_perf['num_comm']}")
+    # print(f"one_episode_perf['sig_tar_agents']:{one_episode_perf['sig_tar_agents']}")
+    performance_dict['per_sig_tar_agents'].extend(one_episode_perf['sig_tar_agents'])
+    # print(f"per_num_obs_comm:{performance_dict['per_num_obs_comm']}")
+    # print(f"per_num_comm:{performance_dict['per_num_comm']}")
+    # print(f"per_sig_tar_agents:{performance_dict['per_sig_tar_agents']}")
     # print(f"after update_perf_dict:{performance_dict}")
     return performance_dict
 
